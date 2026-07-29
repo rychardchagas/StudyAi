@@ -8,3 +8,4 @@ dist/
 *.log
 .DS_Store
 apps/web/data/
+*.tsbuildinfo
