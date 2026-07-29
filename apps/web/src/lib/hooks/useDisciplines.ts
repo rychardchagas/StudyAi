@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import toast from "react-hot-toast";
-import type { Discipline, ModuleStatus } from "@/types";
+import type { Discipline, Module, ModuleStatus } from "@/types";
 
 export type NewDisciplineInput = Omit<Partial<Discipline>, "modules"> & {
   modules?: Array<{ name: string; estimated_hours?: number }>;
@@ -87,5 +87,71 @@ export function useDisciplines(initial: Discipline[]) {
     []
   );
 
-  return { disciplines, addDiscipline, updateDiscipline, removeDiscipline, updateModuleStatus };
+  const updateModule = useCallback(
+    async (disciplineId: string, moduleId: string, updates: Partial<Module>) => {
+      setDisciplines((prev) =>
+        prev.map((d) =>
+          d.id === disciplineId
+            ? { ...d, modules: (d.modules ?? []).map((m) => (m.id === moduleId ? { ...m, ...updates } : m)) }
+            : d
+        )
+      );
+      try {
+        const res = await fetch(`/api/modules/${moduleId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        });
+        if (!res.ok) throw new Error("request failed");
+      } catch {
+        toast.error("Erro ao atualizar módulo");
+      }
+    },
+    []
+  );
+
+  const addModule = useCallback(
+    async (disciplineId: string, input: { name: string; estimated_hours?: number }) => {
+      try {
+        const res = await fetch("/api/modules", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ discipline_id: disciplineId, ...input }),
+        });
+        if (!res.ok) throw new Error("request failed");
+        const created: Module = await res.json();
+        setDisciplines((prev) =>
+          prev.map((d) => (d.id === disciplineId ? { ...d, modules: [...(d.modules ?? []), created] } : d))
+        );
+      } catch {
+        toast.error("Erro ao adicionar módulo");
+      }
+    },
+    []
+  );
+
+  const removeModule = useCallback(async (disciplineId: string, moduleId: string) => {
+    setDisciplines((prev) =>
+      prev.map((d) =>
+        d.id === disciplineId ? { ...d, modules: (d.modules ?? []).filter((m) => m.id !== moduleId) } : d
+      )
+    );
+    try {
+      const res = await fetch(`/api/modules/${moduleId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("request failed");
+    } catch {
+      toast.error("Erro ao remover módulo");
+    }
+  }, []);
+
+  return {
+    disciplines,
+    addDiscipline,
+    updateDiscipline,
+    removeDiscipline,
+    updateModuleStatus,
+    updateModule,
+    addModule,
+    removeModule,
+  };
 }

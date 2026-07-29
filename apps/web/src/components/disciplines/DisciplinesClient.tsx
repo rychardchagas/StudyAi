@@ -11,8 +11,9 @@ import { Tip } from "@/components/ui/Tip";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { useDisciplines } from "@/lib/hooks/useDisciplines";
 import { calcETA } from "@/lib/utils/fsrs";
+import { DAYS_LABELS, SLOT_LABELS } from "@/lib/utils/constants";
 import type { ParsedModule } from "@/lib/agents/curriculum";
-import type { Discipline, ModuleStatus, Priority } from "@/types";
+import type { Discipline, FixedSlot, ModuleStatus, Priority } from "@/types";
 
 const DISC_COLORS = [
   "#3B82F6", "#8B5CF6", "#22C55E", "#F59E0B", "#EF4444",
@@ -62,13 +63,86 @@ interface NewDisciplineForm {
 
 const emptyForm: NewDisciplineForm = { name: "", horas_semana: 4, prioridade: "Média", exam_date: "" };
 
+interface EditDisciplineForm {
+  horas_semana: number;
+  prioridade: Priority;
+  exam_date: string;
+}
+
+interface NewModuleForm {
+  name: string;
+  estimated_hours: number;
+}
+
+const emptyModuleForm: NewModuleForm = { name: "", estimated_hours: 3 };
+
 export function DisciplinesClient({ initialDisciplines }: { initialDisciplines: Discipline[] }) {
-  const { disciplines, addDiscipline, updateDiscipline, removeDiscipline, updateModuleStatus } =
-    useDisciplines(initialDisciplines);
+  const {
+    disciplines,
+    addDiscipline,
+    updateDiscipline,
+    removeDiscipline,
+    updateModuleStatus,
+    updateModule,
+    addModule,
+    removeModule,
+  } = useDisciplines(initialDisciplines);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<NewDisciplineForm>(emptyForm);
   const [parsedModules, setParsedModules] = useState<ParsedModule[]>([]);
   const [parsing, setParsing] = useState(false);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<EditDisciplineForm | null>(null);
+  const [newModuleForm, setNewModuleForm] = useState<NewModuleForm>(emptyModuleForm);
+  const [newFixedSlot, setNewFixedSlot] = useState<FixedSlot>({ dayOfWeek: 0, slotIndex: 13 });
+
+  function startEditing(d: Discipline) {
+    setEditingId(d.id);
+    setEditForm({ horas_semana: d.horas_semana, prioridade: d.prioridade, exam_date: d.exam_date ?? "" });
+    setNewModuleForm(emptyModuleForm);
+    setNewFixedSlot({ dayOfWeek: 0, slotIndex: 13 });
+  }
+
+  async function handleAddFixedSlot(d: Discipline) {
+    const exists = (d.fixed_schedule ?? []).some(
+      (s) => s.dayOfWeek === newFixedSlot.dayOfWeek && s.slotIndex === newFixedSlot.slotIndex
+    );
+    if (exists) {
+      toast.error("Esse horário já está fixado nessa matéria.");
+      return;
+    }
+    await updateDiscipline(d.id, { fixed_schedule: [...(d.fixed_schedule ?? []), newFixedSlot] });
+  }
+
+  async function handleRemoveFixedSlot(d: Discipline, slot: FixedSlot) {
+    await updateDiscipline(d.id, {
+      fixed_schedule: (d.fixed_schedule ?? []).filter(
+        (s) => !(s.dayOfWeek === slot.dayOfWeek && s.slotIndex === slot.slotIndex)
+      ),
+    });
+  }
+
+  function stopEditing() {
+    setEditingId(null);
+    setEditForm(null);
+  }
+
+  async function handleSaveEdit(disciplineId: string) {
+    if (!editForm) return;
+    await updateDiscipline(disciplineId, {
+      horas_semana: editForm.horas_semana,
+      prioridade: editForm.prioridade,
+      exam_date: editForm.exam_date || null,
+    });
+    stopEditing();
+  }
+
+  async function handleAddModule(disciplineId: string) {
+    if (!newModuleForm.name.trim()) return;
+    await addModule(disciplineId, { name: newModuleForm.name.trim(), estimated_hours: newModuleForm.estimated_hours });
+    setNewModuleForm(emptyModuleForm);
+  }
 
   async function handleFileUpload(file: File) {
     if (!form.name.trim()) {
@@ -273,6 +347,17 @@ export function DisciplinesClient({ initialDisciplines }: { initialDisciplines: 
                         </Tip>
                       )}
                       <button
+                        onClick={() => (editingId === d.id ? stopEditing() : startEditing(d))}
+                        className={`w-5 h-5 rounded border text-[10px] flex items-center justify-center cursor-pointer ${
+                          editingId === d.id
+                            ? "bg-primary/15 border-primary/30 text-primary"
+                            : "bg-card2 border-border text-muted hover:text-txt"
+                        }`}
+                        title="Editar matéria"
+                      >
+                        ✎
+                      </button>
+                      <button
                         onClick={() => removeDiscipline(d.id)}
                         className="w-5 h-5 rounded bg-card2 border border-border text-muted hover:text-danger text-[10px] flex items-center justify-center cursor-pointer"
                         title="Remover matéria"
@@ -282,6 +367,151 @@ export function DisciplinesClient({ initialDisciplines }: { initialDisciplines: 
                     </div>
                   </div>
 
+                  {editingId === d.id && editForm ? (
+                    <div className="bg-card2 border border-border rounded-lg p-2.5 mb-2.5 flex flex-col gap-2.5">
+                      <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-col gap-0.5">
+                          <label className="text-[9px] uppercase tracking-wide text-muted">Horas/semana</label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={editForm.horas_semana}
+                            onChange={(e) =>
+                              setEditForm((f) => (f ? { ...f, horas_semana: Number(e.target.value) || 1 } : f))
+                            }
+                            className="bg-card border border-border rounded-md px-2 py-1 text-xs text-txt outline-none focus:border-primary w-20"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <label className="text-[9px] uppercase tracking-wide text-muted">Prioridade</label>
+                          <select
+                            value={editForm.prioridade}
+                            onChange={(e) =>
+                              setEditForm((f) => (f ? { ...f, prioridade: e.target.value as Priority } : f))
+                            }
+                            className="bg-card border border-border rounded-md px-2 py-1 text-xs text-txt outline-none focus:border-primary"
+                          >
+                            {PRIORITIES.map((p) => (
+                              <option key={p} value={p}>{p}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <label className="text-[9px] uppercase tracking-wide text-muted">Data da prova</label>
+                          <input
+                            type="date"
+                            value={editForm.exam_date}
+                            onChange={(e) => setEditForm((f) => (f ? { ...f, exam_date: e.target.value } : f))}
+                            className="bg-card border border-border rounded-md px-2 py-1 text-xs text-txt outline-none focus:border-primary"
+                          />
+                        </div>
+                      </div>
+                      <Button variant="primary" size="sm" onClick={() => handleSaveEdit(d.id)}>
+                        Salvar
+                      </Button>
+
+                      <div className="border-t border-border pt-2 flex flex-col gap-1.5">
+                        <label className="text-[9px] uppercase tracking-wide text-muted">
+                          Horário fixo (recorrência semanal)
+                        </label>
+                        <div className="text-[10px] text-dim leading-relaxed">
+                          Um compromisso que se repete toda semana (ex: aula presencial) — o Scheduler sempre
+                          reserva esse horário pra essa matéria, em vez de distribuir proporcionalmente.
+                        </div>
+                        {(d.fixed_schedule ?? []).length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {(d.fixed_schedule ?? []).map((slot, i) => (
+                              <div
+                                key={i}
+                                className="flex items-center gap-1.5 bg-card border border-border rounded-full pl-2.5 pr-1 py-0.5"
+                              >
+                                <span className="text-[10px] text-txt">
+                                  {DAYS_LABELS[slot.dayOfWeek]} · {SLOT_LABELS[slot.slotIndex]}
+                                </span>
+                                <button
+                                  onClick={() => handleRemoveFixedSlot(d, slot)}
+                                  className="w-3.5 h-3.5 rounded-full bg-card2 text-muted hover:text-danger text-[8px] flex items-center justify-center cursor-pointer"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={newFixedSlot.dayOfWeek}
+                            onChange={(e) =>
+                              setNewFixedSlot((s) => ({ ...s, dayOfWeek: Number(e.target.value) }))
+                            }
+                            className="bg-card border border-border rounded-md px-1.5 py-1 text-[11px] text-txt outline-none focus:border-primary"
+                          >
+                            {DAYS_LABELS.map((label, i) => (
+                              <option key={i} value={i}>{label}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={newFixedSlot.slotIndex}
+                            onChange={(e) =>
+                              setNewFixedSlot((s) => ({ ...s, slotIndex: Number(e.target.value) }))
+                            }
+                            className="bg-card border border-border rounded-md px-1.5 py-1 text-[11px] text-txt outline-none focus:border-primary"
+                          >
+                            {SLOT_LABELS.map((label, i) => (
+                              <option key={i} value={i}>{label}</option>
+                            ))}
+                          </select>
+                          <Button size="sm" onClick={() => handleAddFixedSlot(d)}>+ Fixar</Button>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-border pt-2 flex flex-col gap-1">
+                        <label className="text-[9px] uppercase tracking-wide text-muted">Módulos</label>
+                        {modules.map((m) => (
+                          <div key={m.id} className="flex items-center gap-1.5">
+                            <div className="flex-1 text-xs text-txt">
+                              <InlineEdit value={m.name} onSave={(v) => updateModule(d.id, m.id, { name: v })} />
+                            </div>
+                            <input
+                              type="number"
+                              min={1}
+                              defaultValue={m.estimated_hours}
+                              onBlur={(e) => {
+                                const hours = Number(e.target.value) || 1;
+                                if (hours !== m.estimated_hours) updateModule(d.id, m.id, { estimated_hours: hours });
+                              }}
+                              className="bg-card border border-border rounded-md px-1.5 py-0.5 text-[11px] text-txt outline-none focus:border-primary w-14 shrink-0"
+                            />
+                            <button
+                              onClick={() => removeModule(d.id, m.id)}
+                              className="w-4 h-4 rounded bg-card border border-border text-muted hover:text-danger text-[9px] flex items-center justify-center cursor-pointer shrink-0"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <input
+                            value={newModuleForm.name}
+                            onChange={(e) => setNewModuleForm((f) => ({ ...f, name: e.target.value }))}
+                            placeholder="Novo módulo"
+                            className="flex-1 bg-card border border-border rounded-md px-2 py-1 text-xs text-txt outline-none focus:border-primary"
+                          />
+                          <input
+                            type="number"
+                            min={1}
+                            value={newModuleForm.estimated_hours}
+                            onChange={(e) =>
+                              setNewModuleForm((f) => ({ ...f, estimated_hours: Number(e.target.value) || 1 }))
+                            }
+                            className="bg-card border border-border rounded-md px-1.5 py-1 text-xs text-txt outline-none focus:border-primary w-14 shrink-0"
+                          />
+                          <Button size="sm" onClick={() => handleAddModule(d.id)}>+ Adicionar</Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                  <>
                   <div className="grid grid-cols-3 gap-1.5 mb-2.5">
                     <div className="bg-card2 rounded-md py-1 px-1.5 text-center">
                       <div className="font-mono text-xs font-semibold leading-none" style={{ color: d.color }}>
@@ -349,6 +579,8 @@ export function DisciplinesClient({ initialDisciplines }: { initialDisciplines: 
                       <div className="text-[10px] text-muted pl-[11px]">+{modules.length - 4} módulos</div>
                     )}
                   </div>
+                  </>
+                  )}
                 </div>
                 <div className="py-1.5 px-3 border-t border-border flex justify-between items-center">
                   <div className="text-[11px] text-muted">

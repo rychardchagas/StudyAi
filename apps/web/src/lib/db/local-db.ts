@@ -41,6 +41,13 @@ function getDb(): DatabaseSync {
   db.exec(fs.readFileSync(SCHEMA_PATH, "utf-8"));
   db.prepare(`INSERT OR IGNORE INTO profile (id) VALUES ('local')`).run();
 
+  // Migration: databases created before fixed_schedule existed need the column added —
+  // CREATE TABLE IF NOT EXISTS above only helps brand-new databases.
+  const disciplineColumns = toPlainArray<{ name: string }>(db.prepare(`PRAGMA table_info(disciplines)`).all());
+  if (!disciplineColumns.some((c) => c.name === "fixed_schedule")) {
+    db.exec(`ALTER TABLE disciplines ADD COLUMN fixed_schedule TEXT DEFAULT '[]'`);
+  }
+
   global.__studyaiDb = db;
   return db;
 }
@@ -69,9 +76,15 @@ export function updateProfile(updates: Partial<Profile>): Profile {
 
 // --- Disciplines ---
 
+function parseDiscipline(row: Record<string, unknown>): Discipline {
+  return { ...row, fixed_schedule: JSON.parse((row.fixed_schedule as string) ?? "[]") } as unknown as Discipline;
+}
+
 export function listDisciplines(): Discipline[] {
   const db = getDb();
-  const disciplines = toPlainArray<Discipline>(db.prepare(`SELECT * FROM disciplines ORDER BY created_at ASC`).all());
+  const disciplines = toPlainArray<Record<string, unknown>>(
+    db.prepare(`SELECT * FROM disciplines ORDER BY created_at ASC`).all()
+  ).map(parseDiscipline);
   const modulesStmt = db.prepare(`SELECT * FROM modules WHERE discipline_id = ? ORDER BY order_index ASC`);
   return disciplines.map((d) => ({ ...d, modules: toPlainArray<Module>(modulesStmt.all(d.id)) }));
 }
@@ -80,8 +93,8 @@ export function createDiscipline(input: Partial<Discipline>): Discipline {
   const db = getDb();
   const id = newId();
   db.prepare(
-    `INSERT INTO disciplines (id, name, type, color, horas_semana, prioridade, exam_date, progress)
-     VALUES (@id, @name, @type, @color, @horas_semana, @prioridade, @exam_date, @progress)`
+    `INSERT INTO disciplines (id, name, type, color, horas_semana, prioridade, exam_date, progress, fixed_schedule)
+     VALUES (@id, @name, @type, @color, @horas_semana, @prioridade, @exam_date, @progress, @fixed_schedule)`
   ).run(
     bind({
       id,
@@ -92,9 +105,10 @@ export function createDiscipline(input: Partial<Discipline>): Discipline {
       prioridade: input.prioridade ?? "Média",
       exam_date: input.exam_date ?? null,
       progress: input.progress ?? 0,
+      fixed_schedule: JSON.stringify(input.fixed_schedule ?? []),
     })
   );
-  return toPlain<Discipline>(db.prepare(`SELECT * FROM disciplines WHERE id = ?`).get(id));
+  return parseDiscipline(toPlain(db.prepare(`SELECT * FROM disciplines WHERE id = ?`).get(id)));
 }
 
 export function updateDiscipline(id: string, updates: Partial<Discipline>): Discipline {
@@ -102,11 +116,11 @@ export function updateDiscipline(id: string, updates: Partial<Discipline>): Disc
   const fields = Object.keys(updates).filter((k) => !["id", "modules"].includes(k));
   if (fields.length) {
     const assignments = fields.map((f) => `${f} = @${f}`).join(", ");
-    db.prepare(`UPDATE disciplines SET ${assignments}, updated_at = @updated_at WHERE id = @id`).run(
-      bind({ ...updates, id, updated_at: now() })
-    );
+    const params: Record<string, unknown> = { ...updates, id, updated_at: now() };
+    if ("fixed_schedule" in updates) params.fixed_schedule = JSON.stringify(updates.fixed_schedule ?? []);
+    db.prepare(`UPDATE disciplines SET ${assignments}, updated_at = @updated_at WHERE id = @id`).run(bind(params));
   }
-  return toPlain<Discipline>(db.prepare(`SELECT * FROM disciplines WHERE id = ?`).get(id));
+  return parseDiscipline(toPlain(db.prepare(`SELECT * FROM disciplines WHERE id = ?`).get(id)));
 }
 
 export function deleteDiscipline(id: string): void {

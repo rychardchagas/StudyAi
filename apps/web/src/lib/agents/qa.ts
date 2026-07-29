@@ -24,9 +24,28 @@ export function validateCalendar(events: CalendarEvent[], disciplines: Disciplin
   for (const [day, dayEvents] of byDay) {
     const sorted = [...dayEvents].sort((a, b) => a.slotIndex - b.slotIndex);
     for (let i = 1; i < sorted.length; i++) {
-      if (sorted[i].disciplineId === sorted[i - 1].disciplineId && sorted.length > 1) {
+      const isFixed = sorted[i].methodology === "Aula Fixa" || sorted[i - 1].methodology === "Aula Fixa";
+      if (!isFixed && sorted[i].disciplineId === sorted[i - 1].disciplineId && sorted.length > 1) {
         issues.push(`Interleaving violado: ${sorted[i].disciplineName} aparece em slots consecutivos no dia ${day}.`);
       }
+    }
+  }
+
+  // Two disciplines pinned to the exact same recurring day/slot — the scheduler resolves
+  // this "first one wins", silently dropping the loser's session, so flag it explicitly.
+  const fixedSlotOwners = new Map<string, string[]>();
+  for (const disc of disciplines) {
+    for (const { dayOfWeek, slotIndex } of disc.fixed_schedule ?? []) {
+      const key = `${dayOfWeek}-${slotIndex}`;
+      fixedSlotOwners.set(key, [...(fixedSlotOwners.get(key) ?? []), disc.name]);
+    }
+  }
+  for (const [key, names] of fixedSlotOwners) {
+    if (names.length > 1) {
+      const [day, slot] = key.split("-");
+      issues.push(
+        `Conflito de horário fixo: ${names.join(" e ")} disputam o mesmo horário (dia ${day}, slot ${slot}).`
+      );
     }
   }
 
