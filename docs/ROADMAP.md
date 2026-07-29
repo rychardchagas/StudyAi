@@ -22,7 +22,7 @@ Sem isso, nenhuma tela nova renderiza com as cores certas nem tem navegação.
    - `/onboarding` continua fora do shell (tela cheia, sem sidebar).
 3. **Componentes de baixo nível que faltam**, usados em várias telas: `StatCard`, `Tip` (tooltip), `SchedGrid` (grade de disponibilidade — usada em Onboarding e Settings), `Notice`. Trocar o `Toast` manual do protótipo por `react-hot-toast` (já é dependência, ainda não usado) — adicionar `<Toaster/>` no `app/layout.tsx`.
 
-## Fase 1 — Onboarding
+## Fase 1 — Onboarding ✅ concluída
 
 Primeira tela que o usuário vê agora. Sem referência 1:1 no protótipo (ele não tem onboarding) — é desenho novo, mas funcional:
 
@@ -33,18 +33,18 @@ Primeira tela que o usuário vê agora. Sem referência 1:1 no protótipo (ele n
 - Ao finalizar: `POST /api/disciplines` para cada disciplina+módulos, depois `POST /api/calendar/generate`, redireciona para `/dashboard`.
 - **Rota nova necessária**: `POST /api/disciplines` já aceita módulos? Hoje não — precisa aceitar `modules[]` no body ou expor `POST /api/modules`.
 
-## Fase 2 — Methods (vitrine, sem dependência de dados — bom teste do AppShell)
+## Fase 2 — Methods (vitrine, sem dependência de dados — bom teste do AppShell) ✅ concluída
 
 - Portar `MethodsScreen` e o array `MD` (8 metodologias) quase 1:1 — é conteúdo estático, só troca inline styles por Tailwind.
 - Valida que Sidebar/Topbar da Fase 0 funcionam antes de atacar as telas com dados reais.
 
-## Fase 3 — Disciplines
+## Fase 3 — Disciplines ✅ concluída
 
 - `useDisciplines` hook (`GET/POST /api/disciplines`, que já existem) + rotas novas: `PATCH /api/disciplines/[id]` e `DELETE /api/disciplines/[id]` (usam `updateDiscipline`/`deleteDiscipline`, já existem em `local-db.ts`, só falta a rota).
 - Portar o card de disciplina (nome editável via `InlineEdit`, horas/progresso/dias-para-prova, lista de módulos com toggle de status, ETA via `calcETA` de `lib/utils/fsrs.ts`).
 - Botão "+ Nova matéria" e "✕ remover" chamando o hook.
 
-## Fase 4 — Dashboard
+## Fase 4 — Dashboard ✅ concluída
 
 A tela mais complexa — depende de tudo até aqui:
 
@@ -54,7 +54,7 @@ A tela mais complexa — depende de tudo até aqui:
 - Painel de IA lateral usando `useAI` (já existe) — passar `OrchestratorContext` real (montado a partir do Progress Agent) em vez de mensagens mockadas.
 - **Rota nova**: `GET /api/sessions` (lista sessões — a Fase 6 também precisa).
 
-## Fase 5 — Session
+## Fase 5 — Session ✅ concluída
 
 - Timer com `useTimer` (já pronto) + modo foco (overlay fullscreen, tecla `F`).
 - Checklist de tarefas da sessão.
@@ -62,14 +62,14 @@ A tela mais complexa — depende de tudo até aqui:
 - Ao concluir: `POST /api/sessions/complete` (já existe) + `CelebrationOverlay` (confete — pode ficar para o fim, é polish).
 - Precisa saber *qual* sessão está ativa — vem do clique em "▶ Iniciar sessão" no `EventDrawer` (Fase 4) ou no card de disciplina (Fase 3), carregando a `StudySession` real em vez do módulo fixo "BFS e DFS" do protótipo.
 
-## Fase 6 — Progress
+## Fase 6 — Progress ✅ concluída
 
 - Stats (streak, horas do mês, aderência, revisões) via `Progress Agent`.
 - Heatmap de atividade (12 semanas) a partir do histórico real de `study_sessions`.
 - "Sessões por matéria" (barra por disciplina).
 - "Insights dos agentes" — usar `generateInsights` do Progress Agent em vez do texto fixo do protótipo.
 
-## Fase 7 — Settings
+## Fase 7 — Settings ✅ concluída
 
 - Aba Perfil: nome/bio → `PATCH /api/profile` (mesma rota da Fase 1).
 - Aba Notificações: toggles ligados a `preferences` do perfil (usar `Notification Agent` para decidir o que notificar).

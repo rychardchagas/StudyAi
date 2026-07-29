@@ -20,6 +20,17 @@ function bind(params: Record<string, unknown>): Record<string, SQLInputValue> {
   return bound;
 }
 
+// node:sqlite rows are created with a null prototype (Object.create(null)), which
+// React Server Components refuse to serialize to Client Components ("Only plain
+// objects... Classes or null prototypes are not supported"). Spreading into a
+// fresh {} gives back a normal Object.prototype-backed object.
+function toPlain<T>(row: unknown): T {
+  return (row ? { ...(row as Record<string, unknown>) } : row) as T;
+}
+function toPlainArray<T>(rows: unknown[]): T[] {
+  return rows.map((row) => ({ ...(row as Record<string, unknown>) })) as T[];
+}
+
 function getDb(): DatabaseSync {
   if (global.__studyaiDb) return global.__studyaiDb;
 
@@ -40,7 +51,7 @@ const newId = () => crypto.randomUUID();
 // --- Profile ---
 
 export function getProfile(): Profile {
-  const row = getDb().prepare(`SELECT * FROM profile WHERE id = 'local'`).get() as Record<string, unknown>;
+  const row = toPlain<Record<string, unknown>>(getDb().prepare(`SELECT * FROM profile WHERE id = 'local'`).get());
   return { ...row, preferences: JSON.parse((row.preferences as string) ?? "{}") } as Profile;
 }
 
@@ -60,9 +71,9 @@ export function updateProfile(updates: Partial<Profile>): Profile {
 
 export function listDisciplines(): Discipline[] {
   const db = getDb();
-  const disciplines = db.prepare(`SELECT * FROM disciplines ORDER BY created_at ASC`).all() as unknown as Discipline[];
+  const disciplines = toPlainArray<Discipline>(db.prepare(`SELECT * FROM disciplines ORDER BY created_at ASC`).all());
   const modulesStmt = db.prepare(`SELECT * FROM modules WHERE discipline_id = ? ORDER BY order_index ASC`);
-  return disciplines.map((d) => ({ ...d, modules: modulesStmt.all(d.id) as unknown as Module[] }));
+  return disciplines.map((d) => ({ ...d, modules: toPlainArray<Module>(modulesStmt.all(d.id)) }));
 }
 
 export function createDiscipline(input: Partial<Discipline>): Discipline {
@@ -83,7 +94,7 @@ export function createDiscipline(input: Partial<Discipline>): Discipline {
       progress: input.progress ?? 0,
     })
   );
-  return db.prepare(`SELECT * FROM disciplines WHERE id = ?`).get(id) as unknown as Discipline;
+  return toPlain<Discipline>(db.prepare(`SELECT * FROM disciplines WHERE id = ?`).get(id));
 }
 
 export function updateDiscipline(id: string, updates: Partial<Discipline>): Discipline {
@@ -95,7 +106,7 @@ export function updateDiscipline(id: string, updates: Partial<Discipline>): Disc
       bind({ ...updates, id, updated_at: now() })
     );
   }
-  return db.prepare(`SELECT * FROM disciplines WHERE id = ?`).get(id) as unknown as Discipline;
+  return toPlain<Discipline>(db.prepare(`SELECT * FROM disciplines WHERE id = ?`).get(id));
 }
 
 export function deleteDiscipline(id: string): void {
@@ -107,11 +118,11 @@ export function deleteDiscipline(id: string): void {
 export function listModules(disciplineId?: string): Module[] {
   const db = getDb();
   if (disciplineId) {
-    return db
-      .prepare(`SELECT * FROM modules WHERE discipline_id = ? ORDER BY order_index ASC`)
-      .all(disciplineId) as unknown as Module[];
+    return toPlainArray<Module>(
+      db.prepare(`SELECT * FROM modules WHERE discipline_id = ? ORDER BY order_index ASC`).all(disciplineId)
+    );
   }
-  return db.prepare(`SELECT * FROM modules ORDER BY order_index ASC`).all() as unknown as Module[];
+  return toPlainArray<Module>(db.prepare(`SELECT * FROM modules ORDER BY order_index ASC`).all());
 }
 
 export function createModule(input: Partial<Module> & { discipline_id: string; name: string }): Module {
@@ -130,7 +141,7 @@ export function createModule(input: Partial<Module> & { discipline_id: string; n
       order_index: input.order_index ?? 0,
     })
   );
-  return db.prepare(`SELECT * FROM modules WHERE id = ?`).get(id) as unknown as Module;
+  return toPlain<Module>(db.prepare(`SELECT * FROM modules WHERE id = ?`).get(id));
 }
 
 export function deleteModule(id: string): void {
@@ -146,17 +157,18 @@ export function updateModule(id: string, updates: Partial<Module>): Module {
       bind({ ...updates, id, updated_at: now() })
     );
   }
-  return db.prepare(`SELECT * FROM modules WHERE id = ?`).get(id) as unknown as Module;
+  return toPlain<Module>(db.prepare(`SELECT * FROM modules WHERE id = ?`).get(id));
 }
 
 // --- Study sessions ---
 
 export function listSessions(): StudySession[] {
-  return getDb().prepare(`SELECT * FROM study_sessions ORDER BY scheduled_at ASC`).all() as unknown as StudySession[];
+  return toPlainArray<StudySession>(getDb().prepare(`SELECT * FROM study_sessions ORDER BY scheduled_at ASC`).all());
 }
 
 export function getSession(id: string): StudySession | undefined {
-  return getDb().prepare(`SELECT * FROM study_sessions WHERE id = ?`).get(id) as unknown as StudySession | undefined;
+  const row = getDb().prepare(`SELECT * FROM study_sessions WHERE id = ?`).get(id);
+  return row ? toPlain<StudySession>(row) : undefined;
 }
 
 export function createSession(input: Partial<StudySession>): StudySession {
@@ -175,7 +187,7 @@ export function createSession(input: Partial<StudySession>): StudySession {
       methodology: input.methodology ?? null,
     })
   );
-  return db.prepare(`SELECT * FROM study_sessions WHERE id = ?`).get(id) as unknown as StudySession;
+  return toPlain<StudySession>(db.prepare(`SELECT * FROM study_sessions WHERE id = ?`).get(id));
 }
 
 export function completeSession(id: string, updates: { recallScore?: number; notes?: string }): StudySession {
@@ -190,7 +202,7 @@ export function completeSession(id: string, updates: { recallScore?: number; not
       completed_at: now(),
     })
   );
-  return db.prepare(`SELECT * FROM study_sessions WHERE id = ?`).get(id) as unknown as StudySession;
+  return toPlain<StudySession>(db.prepare(`SELECT * FROM study_sessions WHERE id = ?`).get(id));
 }
 
 // --- Flashcards ---
@@ -198,9 +210,9 @@ export function completeSession(id: string, updates: { recallScore?: number; not
 export function listFlashcards(moduleId?: string): Flashcard[] {
   const db = getDb();
   if (moduleId) {
-    return db.prepare(`SELECT * FROM flashcards WHERE module_id = ? ORDER BY due_date ASC`).all(moduleId) as unknown as Flashcard[];
+    return toPlainArray<Flashcard>(db.prepare(`SELECT * FROM flashcards WHERE module_id = ? ORDER BY due_date ASC`).all(moduleId));
   }
-  return db.prepare(`SELECT * FROM flashcards ORDER BY due_date ASC`).all() as unknown as Flashcard[];
+  return toPlainArray<Flashcard>(db.prepare(`SELECT * FROM flashcards ORDER BY due_date ASC`).all());
 }
 
 export function upsertFlashcard(input: Partial<Flashcard> & { module_id: string; front: string; back: string }): Flashcard {
@@ -209,7 +221,7 @@ export function upsertFlashcard(input: Partial<Flashcard> & { module_id: string;
     const fields = Object.keys(input).filter((k) => k !== "id");
     const assignments = fields.map((f) => `${f} = @${f}`).join(", ");
     db.prepare(`UPDATE flashcards SET ${assignments} WHERE id = @id`).run(bind(input as Record<string, unknown>));
-    return db.prepare(`SELECT * FROM flashcards WHERE id = ?`).get(input.id) as unknown as Flashcard;
+    return toPlain<Flashcard>(db.prepare(`SELECT * FROM flashcards WHERE id = ?`).get(input.id));
   }
   const id = newId();
   db.prepare(
@@ -229,5 +241,5 @@ export function upsertFlashcard(input: Partial<Flashcard> & { module_id: string;
       state: input.state ?? "new",
     })
   );
-  return db.prepare(`SELECT * FROM flashcards WHERE id = ?`).get(id) as unknown as Flashcard;
+  return toPlain<Flashcard>(db.prepare(`SELECT * FROM flashcards WHERE id = ?`).get(id));
 }
