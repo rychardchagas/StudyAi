@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS disciplines (
   prioridade TEXT DEFAULT 'Média' CHECK (prioridade IN ('Alta', 'Média', 'Baixa')),
   exam_date TEXT,
   progress INTEGER DEFAULT 0,
+  fixed_schedule TEXT DEFAULT '[]', -- JSON array of { dayOfWeek, slotIndex } — recurring weekly slots (e.g. a fixed class)
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );

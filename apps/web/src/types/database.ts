@@ -15,6 +15,11 @@ export interface Profile {
   updated_at: string;
 }
 
+export interface FixedSlot {
+  dayOfWeek: number; // 0=Mon ... 6=Sun
+  slotIndex: number; // index into SLOT_LABELS
+}
+
 export interface Discipline {
   id: string;
   name: string;
@@ -24,6 +29,7 @@ export interface Discipline {
   prioridade: Priority;
   exam_date: string | null;
   progress: number;
+  fixed_schedule: FixedSlot[];
   created_at: string;
   updated_at: string;
   // relations
