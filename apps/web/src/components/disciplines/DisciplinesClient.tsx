@@ -1,11 +1,290 @@
 "use client";
-// Disciplines management — uses useCalendar hook
-// Reference: StudyAI.jsx → screen==="disciplines"
+// Disciplines management — uses useDisciplines hook
+// Reference: apps/web/src/app/prototype/StudyAI.jsx → screen==="disciplines" (~L825-884)
 
-export function DisciplinesClient() {
+import { useState } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/Button";
+import { InlineEdit } from "@/components/ui/InlineEdit";
+import { Tip } from "@/components/ui/Tip";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { useDisciplines } from "@/lib/hooks/useDisciplines";
+import { calcETA } from "@/lib/utils/fsrs";
+import type { Discipline, ModuleStatus, Priority } from "@/types";
+
+const DISC_COLORS = [
+  "#3B82F6", "#8B5CF6", "#22C55E", "#F59E0B", "#EF4444",
+  "#06B6D4", "#EC4899", "#F97316", "#14B8A6", "#6366F1",
+];
+
+const PRIORITIES: Priority[] = ["Alta", "Média", "Baixa"];
+
+function daysUntil(examDate: string | null): number | null {
+  if (!examDate) return null;
+  return Math.max(0, Math.ceil((new Date(examDate).getTime() - Date.now()) / 86400000));
+}
+
+// Reimplementation of the prototype's urgencyBorder() (~L229-235) as Tailwind classes.
+function urgencyBorderClass(examDate: string | null): string {
+  const days = daysUntil(examDate);
+  if (days === null) return "border-border";
+  if (days <= 3) return "border-danger/60 shadow-[0_0_8px_rgba(239,68,68,0.25)]";
+  if (days <= 7) return "border-warning/50 shadow-[0_0_6px_rgba(245,158,11,0.2)]";
+  return "border-border";
+}
+
+function nextModuleStatus(status: ModuleStatus): ModuleStatus {
+  if (status === "pend") return "prog";
+  if (status === "prog") return "done";
+  return "pend";
+}
+
+function moduleStatusLabel(status: ModuleStatus): string {
+  if (status === "done") return "✓ feito";
+  if (status === "prog") return "→ em curso";
+  return "pendente";
+}
+
+function moduleStatusClasses(status: ModuleStatus): string {
+  if (status === "done") return "bg-success/15 text-success";
+  if (status === "prog") return "bg-primary/15 text-primary";
+  return "bg-card2 text-muted";
+}
+
+interface NewDisciplineForm {
+  name: string;
+  horas_semana: number;
+  prioridade: Priority;
+  exam_date: string;
+}
+
+const emptyForm: NewDisciplineForm = { name: "", horas_semana: 4, prioridade: "Média", exam_date: "" };
+
+export function DisciplinesClient({ initialDisciplines }: { initialDisciplines: Discipline[] }) {
+  const { disciplines, addDiscipline, updateDiscipline, removeDiscipline, updateModuleStatus } =
+    useDisciplines(initialDisciplines);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState<NewDisciplineForm>(emptyForm);
+
+  async function handleAdd() {
+    if (!form.name.trim()) return;
+    const color = DISC_COLORS[disciplines.length % DISC_COLORS.length];
+    await addDiscipline({
+      name: form.name.trim(),
+      type: "Graduação",
+      color,
+      horas_semana: form.horas_semana,
+      prioridade: form.prioridade,
+      exam_date: form.exam_date || null,
+      progress: 0,
+    });
+    setForm(emptyForm);
+    setShowForm(false);
+  }
+
   return (
-    <div className="p-6">
-      {/* TODO: render discipline cards with InlineEdit, ETA, urgency border */}
+    <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex items-start justify-between flex-wrap gap-2.5 mb-5">
+        <div>
+          <div className="font-mono text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-0.5">
+            Gestão
+          </div>
+          <div className="text-lg font-bold text-txt mb-1">Matérias</div>
+          <div className="text-xs text-dim">
+            Calendário gerado proporcionalmente às horas de cada matéria.
+          </div>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="primary" size="sm" onClick={() => setShowForm((v) => !v)}>
+            + Nova matéria
+          </Button>
+        </div>
+      </div>
+
+      {showForm && (
+        <div className="bg-card border border-border rounded-xl p-4 mb-5 flex flex-wrap gap-3 items-end">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] uppercase tracking-wide text-muted">Nome</label>
+            <input
+              autoFocus
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="Nome da matéria"
+              className="bg-card2 border border-border rounded-lg px-2.5 py-1.5 text-sm text-txt outline-none focus:border-primary min-w-[160px]"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] uppercase tracking-wide text-muted">Horas/semana</label>
+            <input
+              type="number"
+              min={1}
+              value={form.horas_semana}
+              onChange={(e) => setForm((f) => ({ ...f, horas_semana: Number(e.target.value) || 1 }))}
+              className="bg-card2 border border-border rounded-lg px-2.5 py-1.5 text-sm text-txt outline-none focus:border-primary w-24"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] uppercase tracking-wide text-muted">Prioridade</label>
+            <select
+              value={form.prioridade}
+              onChange={(e) => setForm((f) => ({ ...f, prioridade: e.target.value as Priority }))}
+              className="bg-card2 border border-border rounded-lg px-2.5 py-1.5 text-sm text-txt outline-none focus:border-primary"
+            >
+              {PRIORITIES.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] uppercase tracking-wide text-muted">Data da prova</label>
+            <input
+              type="date"
+              value={form.exam_date}
+              onChange={(e) => setForm((f) => ({ ...f, exam_date: e.target.value }))}
+              className="bg-card2 border border-border rounded-lg px-2.5 py-1.5 text-sm text-txt outline-none focus:border-primary"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button variant="primary" size="sm" onClick={handleAdd}>Adicionar</Button>
+            <Button variant="ghost" size="sm" onClick={() => { setShowForm(false); setForm(emptyForm); }}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {disciplines.length === 0 ? (
+        <EmptyState
+          icon="📚"
+          title="Nenhuma matéria ainda"
+          description="Adicione sua primeira disciplina para que o StudyAI gere um calendário personalizado com base nas suas horas e módulos."
+          cta="+ Adicionar primeira matéria"
+          onCta={() => setShowForm(true)}
+        />
+      ) : (
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))" }}>
+          {disciplines.map((d) => {
+            const modules = d.modules ?? [];
+            const daysLeft = daysUntil(d.exam_date);
+            const eta = calcETA(modules, d.horas_semana);
+            const doneCount = modules.filter((m) => m.status === "done").length;
+
+            return (
+              <div
+                key={d.id}
+                className={`bg-card rounded-xl overflow-hidden border ${urgencyBorderClass(d.exam_date)}`}
+              >
+                <div className="h-[3px]" style={{ background: d.color }} />
+                <div className="p-3">
+                  <div className="flex items-start justify-between mb-2.5">
+                    <div className="flex-1 min-w-0 mr-2">
+                      <div className="text-[13px] font-bold text-txt mb-0.5">
+                        <InlineEdit
+                          value={d.name}
+                          onSave={(v) => updateDiscipline(d.id, { name: v })}
+                        />
+                      </div>
+                      <div className="text-[11px] text-muted truncate">
+                        {d.type} · {modules.length} mód. · {d.horas_semana}h/sem
+                      </div>
+                    </div>
+                    <div className="flex gap-1 items-center flex-shrink-0">
+                      {daysLeft !== null && daysLeft <= 7 && (
+                        <Tip label={`Prova em ${daysLeft} dias!`}>
+                          <span className="text-xs cursor-default">⚠️</span>
+                        </Tip>
+                      )}
+                      <button
+                        onClick={() => removeDiscipline(d.id)}
+                        className="w-5 h-5 rounded bg-card2 border border-border text-muted hover:text-danger text-[10px] flex items-center justify-center cursor-pointer"
+                        title="Remover matéria"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-1.5 mb-2.5">
+                    <div className="bg-card2 rounded-md py-1 px-1.5 text-center">
+                      <div className="font-mono text-xs font-semibold leading-none" style={{ color: d.color }}>
+                        {d.horas_semana}h
+                      </div>
+                      <div className="text-[10px] text-muted mt-0.5">por semana</div>
+                    </div>
+                    <div className="bg-card2 rounded-md py-1 px-1.5 text-center">
+                      <div className="font-mono text-xs font-semibold leading-none text-success">
+                        {d.progress}%
+                      </div>
+                      <div className="text-[10px] text-muted mt-0.5">concluído</div>
+                    </div>
+                    <div className="bg-card2 rounded-md py-1 px-1.5 text-center">
+                      <div
+                        className={`font-mono text-xs font-semibold leading-none ${
+                          daysLeft !== null && daysLeft <= 3 ? "text-danger" : "text-warning"
+                        }`}
+                      >
+                        {daysLeft !== null ? `${daysLeft}d` : "—"}
+                      </div>
+                      <div className="text-[10px] text-muted mt-0.5">para a prova</div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between text-[10px] mb-1">
+                    <span className="text-muted">Progresso</span>
+                    <span className="font-mono font-semibold text-txt">{d.progress}%</span>
+                  </div>
+                  <div className="h-[3px] bg-card2 rounded-sm mb-2.5 overflow-hidden">
+                    <div
+                      className="h-[3px] rounded-sm transition-all duration-500"
+                      style={{ background: d.color, width: `${d.progress}%` }}
+                    />
+                  </div>
+
+                  {eta !== null && (
+                    <div className="bg-card2 border border-border rounded-md py-1 px-2 mb-2 flex items-center gap-1.5">
+                      <span className="text-[11px]">🎯</span>
+                      <span className="text-[11px] text-dim">
+                        Conclui em <strong className="text-txt">{eta} {eta === 1 ? "semana" : "semanas"}</strong> no ritmo atual
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-0.5">
+                    {modules.slice(0, 4).map((m) => (
+                      <div key={m.id} className="flex items-center gap-1.5 text-[11px] text-dim">
+                        <div
+                          className={`w-[5px] h-[5px] rounded-full flex-shrink-0 ${
+                            m.status === "done" ? "bg-success" : m.status === "prog" ? "bg-primary" : "bg-muted"
+                          }`}
+                        />
+                        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{m.name}</span>
+                        <span
+                          onClick={() => updateModuleStatus(d.id, m.id, nextModuleStatus(m.status))}
+                          title="Clique para mudar status"
+                          className={`font-mono text-[9px] px-1 py-0.5 rounded cursor-pointer ${moduleStatusClasses(m.status)}`}
+                        >
+                          {moduleStatusLabel(m.status)}
+                        </span>
+                      </div>
+                    ))}
+                    {modules.length > 4 && (
+                      <div className="text-[10px] text-muted pl-[11px]">+{modules.length - 4} módulos</div>
+                    )}
+                  </div>
+                </div>
+                <div className="py-1.5 px-3 border-t border-border flex justify-between items-center">
+                  <div className="text-[11px] text-muted">
+                    <strong className="text-dim">{doneCount}</strong>/{modules.length} módulos concluídos
+                  </div>
+                  <Link href="/session">
+                    <Button size="sm">▶ Estudar</Button>
+                  </Link>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
