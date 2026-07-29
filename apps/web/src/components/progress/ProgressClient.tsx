@@ -1,6 +1,6 @@
 "use client";
 // Progress / Analytics screen — reference: StudyAI.jsx → screen==="progress"
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { StatCard } from "@/components/shared/StatCard";
@@ -47,7 +47,16 @@ function heatLevel(count: number): number {
   return 4;
 }
 
-function ProgressHeader() {
+type Period = "4w" | "month" | "semester";
+
+const PERIOD_DAYS: Record<Period, number> = { "4w": 28, month: 30, semester: 182 };
+const PERIOD_LABELS: Record<Period, string> = {
+  "4w": "Últimas 4 semanas",
+  month: "Este mês",
+  semester: "Semestre",
+};
+
+function ProgressHeader({ period, onPeriodChange }: { period: Period; onPeriodChange: (p: Period) => void }) {
   return (
     <div className="flex items-start justify-between mb-3.5 flex-wrap gap-2">
       <div>
@@ -57,12 +66,16 @@ function ProgressHeader() {
         <div className="text-lg font-bold text-txt">Progresso</div>
       </div>
       <div className="flex gap-2">
-        <select className="bg-card border border-border rounded-md text-dim text-xs px-2.5 py-1.5 w-[145px] cursor-pointer">
-          <option>Últimas 4 semanas</option>
-          <option>Este mês</option>
-          <option>Semestre</option>
+        <select
+          value={period}
+          onChange={(e) => onPeriodChange(e.target.value as Period)}
+          className="bg-card border border-border rounded-md text-dim text-xs px-2.5 py-1.5 w-[145px] cursor-pointer"
+        >
+          {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
+            <option key={p} value={p}>{PERIOD_LABELS[p]}</option>
+          ))}
         </select>
-        <Button size="sm" onClick={() => toast.success("Exportando PDF…")}>
+        <Button size="sm" onClick={() => toast("Exportação em PDF ainda não implementada.", { icon: "🚧" })}>
           Exportar PDF
         </Button>
       </div>
@@ -72,16 +85,24 @@ function ProgressHeader() {
 
 export function ProgressClient({ initialDisciplines, initialSessions }: ProgressClientProps) {
   const router = useRouter();
+  const [period, setPeriod] = useState<Period>("4w");
 
   const allModules = useMemo(
     () => initialDisciplines.flatMap((d) => d.modules ?? []),
     [initialDisciplines]
   );
 
-  const completedSessions = useMemo(
-    () => initialSessions.filter((s) => s.completed),
-    [initialSessions]
-  );
+  // "Aderência" and "streak" are always current-state metrics (this week / consecutive
+  // days) — only the period-scoped stats below (hours, reviews, per-discipline bars)
+  // respect the dropdown.
+  const completedSessions = useMemo(() => {
+    const cutoff = Date.now() - PERIOD_DAYS[period] * 86_400_000;
+    return initialSessions.filter((s) => {
+      if (!s.completed) return false;
+      const at = new Date(s.completed_at ?? s.scheduled_at).getTime();
+      return at >= cutoff;
+    });
+  }, [initialSessions, period]);
 
   const streak = calcStreakDays(initialSessions);
   const adherence = calcWeeklyAdherence(initialSessions);
@@ -138,7 +159,7 @@ export function ProgressClient({ initialDisciplines, initialSessions }: Progress
   if (initialDisciplines.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto p-6 flex flex-col">
-        <ProgressHeader />
+        <ProgressHeader period={period} onPeriodChange={setPeriod} />
         <EmptyState
           icon="📈"
           title="Sem dados ainda"
@@ -152,7 +173,7 @@ export function ProgressClient({ initialDisciplines, initialSessions }: Progress
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
-      <ProgressHeader />
+      <ProgressHeader period={period} onPeriodChange={setPeriod} />
 
       <div className="grid grid-cols-4 gap-2 mb-3.5">
         <StatCard icon="🔥" iconBg={AMB_D} value={streak} label="dias consecutivos" />

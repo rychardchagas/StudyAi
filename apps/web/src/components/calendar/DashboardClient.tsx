@@ -12,18 +12,20 @@ import { Button } from "@/components/ui/Button";
 import { CalGrid } from "@/components/calendar/CalGrid";
 import { EventDrawer } from "@/components/calendar/EventDrawer";
 import { GenOverlay } from "@/components/calendar/GenOverlay";
+import { toAvailabilityRecord } from "@/lib/utils/constants";
 import type { CalendarEvent, Discipline, StudySession } from "@/types";
 
 interface DashboardClientProps {
   initialDisciplines: Discipline[];
   initialSessions: StudySession[];
+  initialAvailability?: Record<number, number[]>;
 }
 
 const SUGGESTIONS = ["⏱ Quanto falta?", "🧠 Quiz", "😓 Sobrecarregado"];
 
-export function DashboardClient({ initialDisciplines, initialSessions }: DashboardClientProps) {
+export function DashboardClient({ initialDisciplines, initialSessions, initialAvailability }: DashboardClientProps) {
   const router = useRouter();
-  const { disciplines, events, generating, regenerate } = useCalendar(initialDisciplines);
+  const { disciplines, events, generating, regenerate } = useCalendar(initialDisciplines, initialAvailability);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [chatInput, setChatInput] = useState("");
 
@@ -72,8 +74,23 @@ export function DashboardClient({ initialDisciplines, initialSessions }: Dashboa
   }
 
   async function handleRegenerate() {
-    await regenerate(disciplines);
-    toast.success("Calendário atualizado!");
+    let availability = initialAvailability;
+    try {
+      const profile = await fetch("/api/profile").then((r) => r.json());
+      availability = toAvailabilityRecord(profile?.preferences?.availability) ?? availability;
+    } catch {
+      // fall through with the availability we already have — regenerate() still works with it
+    }
+
+    const { usedAI, qaIssues } = await regenerate(disciplines, availability);
+    if (usedAI) {
+      toast.success("Calendário replanejado com IA!");
+    } else {
+      toast("Calendário atualizado localmente — IA indisponível (verifique a chave/crédito da Anthropic).", {
+        icon: "⚠️",
+      });
+    }
+    qaIssues.forEach((issue) => toast.error(issue, { duration: 6000 }));
   }
 
   function handleSend(content: string) {

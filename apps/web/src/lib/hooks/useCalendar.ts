@@ -3,16 +3,18 @@ import { useState, useCallback } from "react";
 import { generateCalendar } from "@/lib/agents/scheduler";
 import type { Discipline, CalendarEvent } from "@/types";
 
-export function useCalendar(initialDisciplines: Discipline[]) {
+export function useCalendar(initialDisciplines: Discipline[], initialAvailability?: Record<number, number[]>) {
   const [disciplines, setDisciplines] = useState(initialDisciplines);
   const [events, setEvents] = useState<CalendarEvent[]>(() =>
-    generateCalendar(initialDisciplines)
+    generateCalendar(initialDisciplines, initialAvailability)
   );
   const [generating, setGenerating] = useState(false);
 
   const regenerate = useCallback(
     async (discs: Discipline[], avail?: Record<number, number[]>) => {
       setGenerating(true);
+      let usedAI = false;
+      let qaIssues: string[] = [];
       try {
         // Use AI-powered generation if available, fallback to local
         const res = await fetch("/api/calendar/generate", {
@@ -22,7 +24,13 @@ export function useCalendar(initialDisciplines: Discipline[]) {
         });
         if (res.ok) {
           const data = await res.json();
-          setEvents(data.events ?? generateCalendar(discs, avail));
+          if (data.events) {
+            setEvents(data.events);
+            usedAI = true;
+            qaIssues = data.qa?.issues ?? [];
+          } else {
+            setEvents(generateCalendar(discs, avail));
+          }
         } else {
           setEvents(generateCalendar(discs, avail));
         }
@@ -31,6 +39,7 @@ export function useCalendar(initialDisciplines: Discipline[]) {
       } finally {
         setGenerating(false);
       }
+      return { usedAI, qaIssues };
     },
     []
   );

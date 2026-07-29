@@ -358,7 +358,11 @@ export function DisciplinesClient({ initialDisciplines }: { initialDisciplines: 
                         ✎
                       </button>
                       <button
-                        onClick={() => removeDiscipline(d.id)}
+                        onClick={() => {
+                          if (window.confirm(`Remover "${d.name}" e todos os seus ${modules.length} módulos?`)) {
+                            removeDiscipline(d.id);
+                          }
+                        }}
                         className="w-5 h-5 rounded bg-card2 border border-border text-muted hover:text-danger text-[10px] flex items-center justify-center cursor-pointer"
                         title="Remover matéria"
                       >
