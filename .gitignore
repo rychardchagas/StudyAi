@@ -9,3 +9,4 @@ dist/
 .DS_Store
 apps/web/data/
 *.tsbuildinfo
+.claude/

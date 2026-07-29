@@ -114,6 +114,29 @@ export function listModules(disciplineId?: string): Module[] {
   return db.prepare(`SELECT * FROM modules ORDER BY order_index ASC`).all() as unknown as Module[];
 }
 
+export function createModule(input: Partial<Module> & { discipline_id: string; name: string }): Module {
+  const db = getDb();
+  const id = newId();
+  db.prepare(
+    `INSERT INTO modules (id, discipline_id, name, status, estimated_hours, order_index)
+     VALUES (@id, @discipline_id, @name, @status, @estimated_hours, @order_index)`
+  ).run(
+    bind({
+      id,
+      discipline_id: input.discipline_id,
+      name: input.name,
+      status: input.status ?? "pend",
+      estimated_hours: input.estimated_hours ?? 4,
+      order_index: input.order_index ?? 0,
+    })
+  );
+  return db.prepare(`SELECT * FROM modules WHERE id = ?`).get(id) as unknown as Module;
+}
+
+export function deleteModule(id: string): void {
+  getDb().prepare(`DELETE FROM modules WHERE id = ?`).run(id);
+}
+
 export function updateModule(id: string, updates: Partial<Module>): Module {
   const db = getDb();
   const fields = Object.keys(updates).filter((k) => k !== "id");
@@ -130,6 +153,10 @@ export function updateModule(id: string, updates: Partial<Module>): Module {
 
 export function listSessions(): StudySession[] {
   return getDb().prepare(`SELECT * FROM study_sessions ORDER BY scheduled_at ASC`).all() as unknown as StudySession[];
+}
+
+export function getSession(id: string): StudySession | undefined {
+  return getDb().prepare(`SELECT * FROM study_sessions WHERE id = ?`).get(id) as unknown as StudySession | undefined;
 }
 
 export function createSession(input: Partial<StudySession>): StudySession {
