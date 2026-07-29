@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import toast from "react-hot-toast";
 import type { Discipline, ModuleStatus } from "@/types";
 
-export type NewDisciplineInput = Partial<Discipline> & {
+export type NewDisciplineInput = Omit<Partial<Discipline>, "modules"> & {
   modules?: Array<{ name: string; estimated_hours?: number }>;
 };
 

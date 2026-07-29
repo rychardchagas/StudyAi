@@ -4,12 +4,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import toast from "react-hot-toast";
 import { Button } from "@/components/ui/Button";
 import { InlineEdit } from "@/components/ui/InlineEdit";
 import { Tip } from "@/components/ui/Tip";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { useDisciplines } from "@/lib/hooks/useDisciplines";
 import { calcETA } from "@/lib/utils/fsrs";
+import type { ParsedModule } from "@/lib/agents/curriculum";
 import type { Discipline, ModuleStatus, Priority } from "@/types";
 
 const DISC_COLORS = [
@@ -65,6 +67,30 @@ export function DisciplinesClient({ initialDisciplines }: { initialDisciplines: 
     useDisciplines(initialDisciplines);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<NewDisciplineForm>(emptyForm);
+  const [parsedModules, setParsedModules] = useState<ParsedModule[]>([]);
+  const [parsing, setParsing] = useState(false);
+
+  async function handleFileUpload(file: File) {
+    if (!form.name.trim()) {
+      toast.error("Preencha o nome da matéria antes de importar o arquivo.");
+      return;
+    }
+    setParsing(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      body.append("disciplineName", form.name.trim());
+      const res = await fetch("/api/curriculum/parse", { method: "POST", body });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Falha ao processar o arquivo");
+      setParsedModules(data.modules ?? []);
+      toast.success(`${(data.modules ?? []).length} módulos extraídos do arquivo.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao processar o arquivo");
+    } finally {
+      setParsing(false);
+    }
+  }
 
   async function handleAdd() {
     if (!form.name.trim()) return;
@@ -77,8 +103,10 @@ export function DisciplinesClient({ initialDisciplines }: { initialDisciplines: 
       prioridade: form.prioridade,
       exam_date: form.exam_date || null,
       progress: 0,
+      modules: parsedModules.map((m) => ({ name: m.name, estimated_hours: m.estimatedHours })),
     });
     setForm(emptyForm);
+    setParsedModules([]);
     setShowForm(false);
   }
 
@@ -102,7 +130,8 @@ export function DisciplinesClient({ initialDisciplines }: { initialDisciplines: 
       </div>
 
       {showForm && (
-        <div className="bg-card border border-border rounded-xl p-4 mb-5 flex flex-wrap gap-3 items-end">
+        <div className="bg-card border border-border rounded-xl p-4 mb-5 flex flex-col gap-3">
+        <div className="flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
             <label className="text-[10px] uppercase tracking-wide text-muted">Nome</label>
             <input
@@ -144,12 +173,61 @@ export function DisciplinesClient({ initialDisciplines }: { initialDisciplines: 
               className="bg-card2 border border-border rounded-lg px-2.5 py-1.5 text-sm text-txt outline-none focus:border-primary"
             />
           </div>
-          <div className="flex gap-2">
-            <Button variant="primary" size="sm" onClick={handleAdd}>Adicionar</Button>
-            <Button variant="ghost" size="sm" onClick={() => { setShowForm(false); setForm(emptyForm); }}>
-              Cancelar
-            </Button>
+        </div>
+
+        <div className="border-t border-border pt-3">
+          <label className="text-[10px] uppercase tracking-wide text-muted block mb-1.5">
+            Importar ementa (PDF ou texto) — opcional
+          </label>
+          <div className="flex items-center gap-3 flex-wrap">
+            <input
+              type="file"
+              accept=".pdf,.txt,.md,application/pdf,text/plain"
+              disabled={parsing}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleFileUpload(file);
+                e.target.value = "";
+              }}
+              className="text-xs text-dim file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-border file:bg-card2 file:text-txt file:text-xs file:cursor-pointer cursor-pointer"
+            />
+            {parsing && <span className="text-xs text-muted">Extraindo módulos com o Curriculum Agent…</span>}
           </div>
+
+          {parsedModules.length > 0 && (
+            <div className="mt-3 flex flex-col gap-1.5">
+              <div className="text-[11px] text-dim">
+                {parsedModules.length} módulos extraídos — serão adicionados junto com a matéria:
+              </div>
+              {parsedModules.map((m, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-2 bg-card2 border border-border rounded-lg px-2.5 py-1.5"
+                >
+                  <span className="flex-1 text-xs text-txt truncate">{m.name}</span>
+                  <span className="font-mono text-[10px] text-muted shrink-0">{m.estimatedHours}h</span>
+                  <button
+                    onClick={() => setParsedModules((p) => p.filter((_, mi) => mi !== i))}
+                    className="w-4 h-4 rounded bg-card border border-border text-muted hover:text-danger text-[9px] flex items-center justify-center cursor-pointer shrink-0"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <Button variant="primary" size="sm" onClick={handleAdd}>Adicionar</Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setShowForm(false); setForm(emptyForm); setParsedModules([]); }}
+          >
+            Cancelar
+          </Button>
+        </div>
         </div>
       )}
 
