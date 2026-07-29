@@ -68,6 +68,27 @@ export function SessionClient() {
 
   const createdRef = useRef(false);
 
+  async function createSessionRow(): Promise<string | null> {
+    try {
+      const res = await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          discipline_id: disciplineId,
+          module_id: moduleId || undefined,
+          scheduled_at: new Date().toISOString(),
+          duration_minutes: durationMinutes,
+          methodology: methodology || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to create session");
+      const created: StudySession = await res.json();
+      return created.id;
+    } catch {
+      return null;
+    }
+  }
+
   // Create the DB row once, on mount, only when we arrived with real params.
   useEffect(() => {
     if (createdRef.current) return;
@@ -75,24 +96,9 @@ export function SessionClient() {
     if (!disciplineId) return;
 
     (async () => {
-      try {
-        const res = await fetch("/api/sessions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            discipline_id: disciplineId,
-            module_id: moduleId || undefined,
-            scheduled_at: new Date().toISOString(),
-            duration_minutes: durationMinutes,
-            methodology: methodology || undefined,
-          }),
-        });
-        if (!res.ok) throw new Error("Failed to create session");
-        const created: StudySession = await res.json();
-        setSessionId(created.id);
-      } catch {
-        toast.error("Não foi possível registrar a sessão no servidor.");
-      }
+      const id = await createSessionRow();
+      if (id) setSessionId(id);
+      else toast.error("Não foi possível registrar a sessão no servidor — vou tentar de novo ao concluir.");
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -109,6 +115,7 @@ export function SessionClient() {
     function onKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return; // don't hijack browser shortcuts (e.g. Ctrl+F find)
       if (e.key === " ") {
         e.preventDefault();
         timer.toggle();
@@ -190,18 +197,22 @@ export function SessionClient() {
     if (completing) return;
     setCompleting(true);
     try {
-      if (sessionId) {
-        const res = await fetch("/api/sessions/complete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId,
-            recallScore: 4,
-            notes: recallNotes.join("\n\n") || recallAnswer.trim() || undefined,
-          }),
-        });
-        if (!res.ok) throw new Error("Failed to complete session");
+      const id = sessionId ?? (await createSessionRow());
+      if (!id) {
+        toast.error("Sessão encerrada, mas não foi possível salvar no histórico (sem conexão com o servidor).");
+        router.push("/dashboard");
+        return;
       }
+      const res = await fetch("/api/sessions/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: id,
+          recallScore: 4,
+          notes: recallNotes.join("\n\n") || recallAnswer.trim() || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to complete session");
       toast.success("Sessão concluída! Bom trabalho.");
       router.push("/dashboard");
     } catch {

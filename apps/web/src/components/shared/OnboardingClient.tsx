@@ -186,7 +186,7 @@ export function OnboardingClient() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-bg flex items-center justify-center p-4">
       <div className="w-full max-w-2xl bg-surface border border-border rounded-2xl overflow-hidden">
         {/* Progress bar */}
         <div className="h-0.5 bg-card2">

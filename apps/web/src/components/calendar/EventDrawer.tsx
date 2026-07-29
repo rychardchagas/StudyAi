@@ -51,20 +51,13 @@ export function EventDrawer({ event, onClose, onStartSession }: EventDrawerProps
           ))}
         </div>
 
-        <div className="p-2.5 px-3.5 border-t border-border flex gap-2 shrink-0">
+        <div className="p-2.5 px-3.5 border-t border-border shrink-0">
           <button
             type="button"
             onClick={() => onStartSession(event)}
-            className="flex-1 text-sm font-semibold bg-primary text-white rounded-lg py-2.5 cursor-pointer hover:opacity-90 transition-opacity"
+            className="w-full text-sm font-semibold bg-primary text-white rounded-lg py-2.5 cursor-pointer hover:opacity-90 transition-opacity"
           >
             ▶ Iniciar sessão
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-xs bg-card text-muted border border-border rounded-lg py-2.5 px-3.5 cursor-pointer hover:text-txt transition-colors"
-          >
-            Adiar
           </button>
         </div>
       </div>
