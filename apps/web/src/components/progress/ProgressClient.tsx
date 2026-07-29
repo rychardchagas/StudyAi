@@ -7,6 +7,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { calcWeeklyAdherence, calcStreakDays, generateInsights } from "@/lib/agents/progress";
+import { startOfWeekMonday } from "@/lib/utils/constants";
 import type { Discipline, StudySession } from "@/types";
 
 interface ProgressClientProps {
@@ -29,15 +30,6 @@ const BLUE_D = "rgba(59,130,246,.12)";
 const LAV_D = "rgba(139,92,246,.12)";
 const GRN_D = "rgba(34,197,94,.1)";
 const AMB_D = "rgba(245,158,11,.1)";
-
-function startOfWeekMonday(d: Date): Date {
-  const date = new Date(d);
-  const day = date.getDay();
-  const diff = (day === 0 ? -6 : 1) - day;
-  date.setDate(date.getDate() + diff);
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
 
 function heatLevel(count: number): number {
   if (count <= 0) return 0;

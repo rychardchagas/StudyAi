@@ -5,18 +5,38 @@ import type { CalendarEvent } from "@/types";
 interface CalGridProps {
   events: CalendarEvent[];
   onClickEvent: (ev: CalendarEvent) => void;
+  weekDates?: Date[]; // 7 entries, Monday..Sunday of the displayed week
 }
 
-export function CalGrid({ events, onClickEvent }: CalGridProps) {
+function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+export function CalGrid({ events, onClickEvent, weekDates }: CalGridProps) {
+  const today = new Date();
+
   return (
     <div className="flex-1 overflow-auto px-3.5 pb-3.5">
       <div className="grid grid-cols-[44px_repeat(7,minmax(90px,1fr))] gap-[3px] mb-[3px] min-w-[540px]">
         <div />
-        {DAYS_LABELS.map((label) => (
-          <div key={label} className="text-center py-1">
-            <div className="font-mono text-[10px] font-medium tracking-wider uppercase text-muted">{label}</div>
-          </div>
-        ))}
+        {DAYS_LABELS.map((label, i) => {
+          const date = weekDates?.[i];
+          const isToday = date ? isSameDay(date, today) : false;
+          return (
+            <div key={label} className="text-center py-1">
+              <div className="font-mono text-[10px] font-medium tracking-wider uppercase text-muted">{label}</div>
+              {date && (
+                <div
+                  className={`mx-auto mt-0.5 flex h-[22px] w-[22px] items-center justify-center rounded-full text-[13px] font-semibold ${
+                    isToday ? "bg-primary/15 text-primary" : "text-dim"
+                  }`}
+                >
+                  {date.getDate()}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
       <div className="grid grid-cols-[44px_repeat(7,minmax(90px,1fr))] gap-[3px] min-w-[540px]">
         <div className="flex flex-col">

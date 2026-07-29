@@ -4,6 +4,15 @@ export const SLOT_LABELS = [
   "14h", "15h", "16h", "17h", "18h", "19h", "20h", "21h",
 ];
 
+export function startOfWeekMonday(d: Date): Date {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = (day === 0 ? -6 : 1) - day;
+  date.setDate(date.getDate() + diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
 // Converts the SchedGrid boolean map ("dayIndex-slotIndex" -> boolean) into the
 // Record<dayOfWeek, slotIndex[]> shape the Scheduler Agent (generateCalendar) expects.
 export function toAvailabilityRecord(slots: Record<string, boolean> | undefined): Record<number, number[]> | undefined {
