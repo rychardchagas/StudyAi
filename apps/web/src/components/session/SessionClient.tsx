@@ -175,7 +175,8 @@ export function SessionClient() {
         streakDays: 0,
         pendingReviews: 0,
       });
-      setCoachMessages((p) => [...p, reply]);
+      setCoachMessages((p) => [...p, reply.content]);
+      reply.actionsPerformed.forEach((a) => toast.success(a));
     } catch {
       const fallback = CANNED_COACH_REPLIES[coachIdx.current % CANNED_COACH_REPLIES.length];
       coachIdx.current += 1;
