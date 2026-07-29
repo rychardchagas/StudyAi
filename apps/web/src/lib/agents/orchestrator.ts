@@ -13,10 +13,15 @@ export interface OrchestratorContext {
   pendingReviews: number;
 }
 
+export interface OrchestratorReply {
+  content: string;
+  actionsPerformed: string[];
+}
+
 export async function sendToOrchestrator(
   messages: AgentMessage[],
   context?: OrchestratorContext
-): Promise<string> {
+): Promise<OrchestratorReply> {
   const res = await fetch("/api/agents", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -25,5 +30,5 @@ export async function sendToOrchestrator(
 
   if (!res.ok) throw new Error("Orchestrator request failed");
   const data = await res.json();
-  return data.content;
+  return { content: data.content, actionsPerformed: data.actionsPerformed ?? [] };
 }
