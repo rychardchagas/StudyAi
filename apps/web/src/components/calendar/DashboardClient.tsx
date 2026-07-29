@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { CalGrid } from "@/components/calendar/CalGrid";
 import { EventDrawer } from "@/components/calendar/EventDrawer";
 import { GenOverlay } from "@/components/calendar/GenOverlay";
-import { toAvailabilityRecord } from "@/lib/utils/constants";
+import { startOfWeekMonday, toAvailabilityRecord } from "@/lib/utils/constants";
 import type { CalendarEvent, Discipline, StudySession } from "@/types";
 
 interface DashboardClientProps {
@@ -22,12 +22,33 @@ interface DashboardClientProps {
 }
 
 const SUGGESTIONS = ["⏱ Quanto falta?", "🧠 Quiz", "😓 Sobrecarregado"];
+const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 export function DashboardClient({ initialDisciplines, initialSessions, initialAvailability }: DashboardClientProps) {
   const router = useRouter();
   const { disciplines, events, generating, regenerate } = useCalendar(initialDisciplines, initialAvailability);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [chatInput, setChatInput] = useState("");
+  const [weekOffset, setWeekOffset] = useState(0);
+
+  // The calendar itself is a recurring weekly template (same events every week — see
+  // useCalendar/generateCalendar), so navigating weeks only changes which real dates are
+  // shown as labels; it never re-fetches different events for a different week.
+  const weekDates = useMemo(() => {
+    const start = startOfWeekMonday(new Date());
+    start.setDate(start.getDate() + weekOffset * 7);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      return d;
+    });
+  }, [weekOffset]);
+
+  const weekLabel = useMemo(() => {
+    const [start, end] = [weekDates[0], weekDates[6]];
+    const startLabel = start.getMonth() === end.getMonth() ? `${start.getDate()}` : `${start.getDate()} ${MONTHS[start.getMonth()]}`;
+    return `${startLabel}–${end.getDate()} ${MONTHS[end.getMonth()]}, ${end.getFullYear()}`;
+  }, [weekDates]);
 
   const weeklyAdherence = useMemo(() => calcWeeklyAdherence(initialSessions), [initialSessions]);
   const streakDays = useMemo(() => calcStreakDays(initialSessions), [initialSessions]);
@@ -124,6 +145,37 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
       <div className="flex flex-1 overflow-hidden mx-4 mb-3.5 border border-border rounded-xl">
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="px-3.5 py-2 border-b border-border flex items-center justify-between gap-2 flex-wrap shrink-0">
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setWeekOffset((p) => p - 1)}
+                className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-card text-dim cursor-pointer hover:text-txt"
+              >
+                ‹
+              </button>
+              <div
+                className="text-[13px] font-semibold text-txt min-w-[130px] text-center"
+                title="O calendário é um modelo semanal recorrente — as mesmas sessões se repetem toda semana."
+              >
+                {weekLabel}
+              </div>
+              <button
+                type="button"
+                onClick={() => setWeekOffset((p) => p + 1)}
+                className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-card text-dim cursor-pointer hover:text-txt"
+              >
+                ›
+              </button>
+              {weekOffset !== 0 && (
+                <button
+                  type="button"
+                  onClick={() => setWeekOffset(0)}
+                  className="font-mono text-[10px] font-semibold text-primary bg-primary/10 border border-primary/25 rounded-md px-2 h-6 cursor-pointer"
+                >
+                  HOJ
+                </button>
+              )}
+            </div>
             <div className="flex items-center gap-2 flex-wrap">
               {disciplines.slice(0, 4).map((d) => (
                 <div key={d.id} className="flex items-center gap-1 text-[11px] text-muted">
@@ -136,7 +188,7 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
               ⚡ Replanejar
             </Button>
           </div>
-          <CalGrid events={events} onClickEvent={setSelectedEvent} />
+          <CalGrid events={events} onClickEvent={setSelectedEvent} weekDates={weekDates} />
         </div>
 
         {/* AI Panel */}
