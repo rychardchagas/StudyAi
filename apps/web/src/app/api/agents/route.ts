@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { executeTool, TOOLS } from "@/lib/agents/tools";
+import { describeAnthropicError } from "@/lib/agents/anthropic-error";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("Orchestrator error:", error);
-    return NextResponse.json({ error: "Agent error" }, { status: 500 });
+    const { status, code, message } = describeAnthropicError(error);
+    return NextResponse.json({ error: code, content: message }, { status });
   }
 }

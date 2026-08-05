@@ -26,8 +26,9 @@ export function useAI(context?: OrchestratorContext) {
         actionsPerformed.forEach((a) => toast.success(a));
         router.refresh();
       }
-    } catch {
-      setMessages((p) => [...p, { role: "assistant", content: "Erro ao conectar ao agente. Tente novamente." }]);
+    } catch (error) {
+      const content = error instanceof Error ? error.message : "Erro ao conectar ao agente. Tente novamente.";
+      setMessages((p) => [...p, { role: "assistant", content }]);
     } finally {
       setLoading(false);
     }

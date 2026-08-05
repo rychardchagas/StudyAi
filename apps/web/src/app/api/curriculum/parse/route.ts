@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import pdfParse from "pdf-parse";
 import type { ParsedModule } from "@/lib/agents/curriculum";
+import { describeAnthropicError } from "@/lib/agents/anthropic-error";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -53,6 +54,7 @@ Return ONLY JSON array:
     return NextResponse.json({ modules });
   } catch (error) {
     console.error("Curriculum parse error:", error);
-    return NextResponse.json({ error: "Falha ao processar o arquivo" }, { status: 500 });
+    const { status, code, message } = describeAnthropicError(error);
+    return NextResponse.json({ error: code, message }, { status });
   }
 }
