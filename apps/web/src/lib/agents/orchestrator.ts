@@ -28,7 +28,7 @@ export async function sendToOrchestrator(
     body: JSON.stringify({ messages, context }),
   });
 
-  if (!res.ok) throw new Error("Orchestrator request failed");
-  const data = await res.json();
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.content ?? "Erro ao conectar ao agente. Tente novamente.");
   return { content: data.content, actionsPerformed: data.actionsPerformed ?? [] };
 }

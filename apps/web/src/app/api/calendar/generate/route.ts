@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { validateCalendar } from "@/lib/agents/qa";
+import { describeAnthropicError } from "@/lib/agents/anthropic-error";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -55,6 +56,7 @@ Return ONLY valid JSON in this format:
     return NextResponse.json({ ...calendar, qa });
   } catch (error) {
     console.error("Calendar generation error:", error);
-    return NextResponse.json({ error: "Generation failed" }, { status: 500 });
+    const { status, code, message } = describeAnthropicError(error);
+    return NextResponse.json({ error: code, message }, { status });
   }
 }

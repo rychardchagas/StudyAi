@@ -156,7 +156,7 @@ export function DisciplinesClient({ initialDisciplines }: { initialDisciplines: 
       body.append("disciplineName", form.name.trim());
       const res = await fetch("/api/curriculum/parse", { method: "POST", body });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Falha ao processar o arquivo");
+      if (!res.ok) throw new Error(data.message ?? data.error ?? "Falha ao processar o arquivo");
       setParsedModules(data.modules ?? []);
       toast.success(`${(data.modules ?? []).length} módulos extraídos do arquivo.`);
     } catch (error) {
@@ -325,6 +325,7 @@ export function DisciplinesClient({ initialDisciplines }: { initialDisciplines: 
               <div
                 key={d.id}
                 className={`bg-card rounded-xl overflow-hidden border ${urgencyBorderClass(d.exam_date)}`}
+                style={editingId === d.id ? { gridColumn: "span 2" } : undefined}
               >
                 <div className="h-[3px]" style={{ background: d.color }} />
                 <div className="p-3">
@@ -473,9 +474,16 @@ export function DisciplinesClient({ initialDisciplines }: { initialDisciplines: 
                         <label className="text-[9px] uppercase tracking-wide text-muted">Módulos</label>
                         {modules.map((m) => (
                           <div key={m.id} className="flex items-center gap-1.5">
-                            <div className="flex-1 text-xs text-txt">
+                            <div className="flex-1 text-xs text-txt min-w-0">
                               <InlineEdit value={m.name} onSave={(v) => updateModule(d.id, m.id, { name: v })} />
                             </div>
+                            <span
+                              onClick={() => updateModuleStatus(d.id, m.id, nextModuleStatus(m.status))}
+                              title="Clique para mudar status"
+                              className={`font-mono text-[9px] px-1 py-0.5 rounded cursor-pointer shrink-0 whitespace-nowrap ${moduleStatusClasses(m.status)}`}
+                            >
+                              {moduleStatusLabel(m.status)}
+                            </span>
                             <input
                               type="number"
                               min={1}
