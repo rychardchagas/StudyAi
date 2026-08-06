@@ -5,24 +5,20 @@ interface ToggleProps {
 
 export function Toggle({ checked, onChange }: ToggleProps) {
   return (
-    <div
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
       onClick={() => onChange(!checked)}
-      style={{
-        position: "relative", width: 34, height: 18,
-        cursor: "pointer", flexShrink: 0,
-      }}
+      className={`relative w-[34px] h-[18px] shrink-0 rounded-full cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
+        checked ? "bg-primary" : "bg-white/[0.13]"
+      }`}
     >
-      <div style={{
-        position: "absolute", inset: 0, borderRadius: 18,
-        background: checked ? "#3B82F6" : "rgba(255,255,255,.13)",
-        transition: "background .18s",
-      }}/>
-      <div style={{
-        position: "absolute", top: 3, left: 3,
-        width: 12, height: 12, borderRadius: "50%",
-        background: "#fff", transition: "transform .18s",
-        transform: checked ? "translateX(16px)" : "translateX(0)",
-      }}/>
-    </div>
+      <span
+        className={`absolute top-[3px] left-[3px] w-3 h-3 rounded-full bg-white transition-transform ${
+          checked ? "translate-x-4" : "translate-x-0"
+        }`}
+      />
+    </button>
   );
 }
