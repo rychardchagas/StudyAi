@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { completeSession } from "@/lib/db/local-db";
+import { handleApiError } from "@/lib/api/respond";
+import { sessionCompleteSchema } from "@/lib/api/schemas";
 
 export async function POST(req: NextRequest) {
   try {
-    const { sessionId, recallScore, notes } = await req.json();
+    const { sessionId, recallScore, notes } = sessionCompleteSchema.parse(await req.json());
 
     completeSession(sessionId, { recallScore, notes });
 
@@ -12,7 +14,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Session complete error:", error);
-    return NextResponse.json({ error: "Failed to complete session" }, { status: 500 });
+    return handleApiError(error, "Failed to complete session");
   }
 }
