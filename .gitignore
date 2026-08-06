@@ -9,9 +9,6 @@ dist/
 .DS_Store
 apps/web/data/
 *.tsbuildinfo
-.claude/settings.local.json
-.claude/settings.json
+.claude/
 docs/KANBAN.md
 docs/GITHUB_ROADMAP.md
-.claude/skills/ui-ux-design-mentor/
-.claude/skills/devsecops-cycle-coach/
