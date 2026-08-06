@@ -59,6 +59,7 @@ const labelClass = "block font-mono text-[10px] font-semibold uppercase tracking
 export function SettingsClient({ initialProfile }: SettingsClientProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
   const [saving, setSaving] = useState(false);
+  const [fixingProgress, setFixingProgress] = useState(false);
 
   const basePreferences = initialProfile.preferences ?? {};
 
@@ -120,6 +121,24 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
     }
   }
 
+  async function handleFixProgress() {
+    setFixingProgress(true);
+    try {
+      const res = await fetch("/api/disciplines/recalculate-progress", { method: "POST" });
+      if (!res.ok) throw new Error("Falha ao recalcular");
+      const { updated, total } = await res.json();
+      if (updated === 0) {
+        toast.success(`Progresso já estava correto em todas as ${total} matérias.`);
+      } else {
+        toast.success(`Progresso corrigido em ${updated} de ${total} matéria(s).`);
+      }
+    } catch {
+      toast.error("Não foi possível recalcular o progresso");
+    } finally {
+      setFixingProgress(false);
+    }
+  }
+
   function selectAllSlots() {
     const next: Record<string, boolean> = {};
     DAYS_LABELS.forEach((_, di) => SLOT_LABELS.forEach((__, si) => (next[`${di}-${si}`] = true)));
@@ -133,7 +152,7 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
           <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-muted mb-[3px]">
             Sistema
           </div>
-          <div className="text-lg font-bold text-txt">Configurações</div>
+          <div className="font-serif text-lg font-semibold text-txt">Configurações</div>
         </div>
         <Button variant="primary" size="sm" onClick={handleSave} disabled={saving}>
           {saving ? "Salvando..." : "Salvar alterações"}
@@ -182,6 +201,25 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
                   onChange={(e) => setBio(e.target.value)}
                   placeholder="Conte à IA como você estuda, seus horários preferidos e preferências de aprendizado."
                 />
+              </div>
+
+              <div className="h-px bg-border my-3.5" />
+
+              <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-muted mb-2">
+                Manutenção
+              </div>
+              <div className="flex items-center justify-between gap-3 py-1">
+                <div>
+                  <div className="text-xs text-txt mb-0.5">Corrigir progresso das matérias</div>
+                  <div className="text-[11px] text-muted">
+                    O % de conclusão de cada matéria não é recalculado automaticamente — se ele
+                    ficou desatualizado (ex: sempre em 0%), use este botão para recalcular a
+                    partir dos módulos realmente marcados como concluídos.
+                  </div>
+                </div>
+                <Button size="sm" onClick={handleFixProgress} disabled={fixingProgress}>
+                  {fixingProgress ? "Corrigindo..." : "Corrigir progresso"}
+                </Button>
               </div>
             </div>
           )}

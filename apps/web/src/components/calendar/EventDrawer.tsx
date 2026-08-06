@@ -18,10 +18,15 @@ export function EventDrawer({ event, onClose, onStartSession }: EventDrawerProps
   ];
 
   return (
-    <>
-      <div onClick={onClose} className="fixed inset-0 bg-black/55 backdrop-blur-sm z-[80]" />
-      <div className="fixed right-0 top-0 bottom-0 w-[330px] bg-surface border-l border-border z-[81] flex flex-col">
-        <div className="p-3.5 pb-2.5 border-b border-border shrink-0">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 bg-black/55 backdrop-blur-sm z-[80] flex items-center justify-center p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-[360px] bg-surface border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+      >
+        <div className="p-4 pb-3 border-b border-border shrink-0">
           <button
             type="button"
             onClick={onClose}
@@ -41,26 +46,26 @@ export function EventDrawer({ event, onClose, onStartSession }: EventDrawerProps
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3.5">
+        <div className="p-4">
           <div className="font-mono text-[10px] font-semibold tracking-wider uppercase text-muted mb-2">Detalhes</div>
           {details.map(([k, v]) => (
-            <div key={k} className="flex justify-between py-1.5 border-b border-white/[0.04]">
+            <div key={k} className="flex justify-between py-1.5 border-b border-white/[0.04] last:border-b-0">
               <span className="text-[11px] text-muted">{k}</span>
               <span className="font-mono text-[11px] text-txt text-right max-w-[180px] truncate">{v}</span>
             </div>
           ))}
         </div>
 
-        <div className="p-2.5 px-3.5 border-t border-border shrink-0">
+        <div className="p-3 pt-0 shrink-0">
           <button
             type="button"
             onClick={() => onStartSession(event)}
-            className="w-full text-sm font-semibold bg-primary text-white rounded-lg py-2.5 cursor-pointer hover:opacity-90 transition-opacity"
+            className="w-full text-sm font-semibold bg-primary text-bg rounded-lg py-2.5 cursor-pointer hover:opacity-90 transition-opacity"
           >
             ▶ Iniciar sessão
           </button>
         </div>
       </div>
-    </>
+    </div>
   );
 }
