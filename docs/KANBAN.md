@@ -26,32 +26,7 @@ Origem dos cards: achados da skill `backend-senior-mentor` (revisão de backend)
 
 ### Backend Hardening
 
-- [ ] **Allowlist/validar bodies do PATCH (mass assignment)** — prioridade 1
-  Arquivos: `apps/web/src/lib/db/local-db.ts` (`updateDiscipline`, `updateProfile`, `updateModule`),
-  `apps/web/src/app/api/disciplines/[id]/route.ts`, `apps/web/src/app/api/profile/route.ts`.
-  Hoje o body do request é repassado direto para funções que montam `SET campo = @campo` a partir
-  de `Object.keys()` — qualquer chave do JSON vira coluna SQL. Adicionar schema explícito
-  (allowlist) antes de chamar essas funções.
-
-- [ ] **Propagar o padrão de error handling de `agents/route.ts` pras rotas CRUD** — prioridade 2
-  Arquivos: todas as rotas em `apps/web/src/app/api/**/route.ts` exceto `agents/route.ts` (que já
-  faz certo). Trocar `catch (error) { ... }` genérico sem log por `console.error` com contexto +
-  status code correto (400 vs 500).
-
-- [ ] **Adicionar `zod` como dependência direta + validar bodies de POST/PATCH** — prioridade 3
-  `zod` já está resolvido no `pnpm-lock.yaml` (transitivo via `ai`/`@anthropic-ai/sdk`). Promover
-  a dependência direta em `apps/web/package.json` e criar um schema por rota.
-
-- [ ] **Resolver duplicidade do cálculo FSRS** — prioridade 4
-  `apps/web/src/lib/utils/fsrs.ts::scheduleCard()` vs.
-  `apps/web/src/lib/agents/pedagogy.ts::calcNextReview()` — pesos e fórmulas diferentes para o
-  mesmo cálculo. Decidir qual é a fonte da verdade (checar o que `POST /api/sessions/complete`
-  realmente usa) e remover/depreciar a outra.
-
-- [ ] **Suite de testes mínima** — prioridade 5
-  Nenhum test runner configurado. Adicionar `vitest`, começar pelo caso de mass assignment acima
-  ("PATCH com chave inesperada não deve alterar aquela coluna"). Pré-requisito pro gate de CI da
-  seção DevSecOps abaixo.
+_(todo o bloco em andamento — ver seção "Em Andamento" abaixo)_
 
 ### DevSecOps — escada de maturidade
 
@@ -78,7 +53,13 @@ Origem dos cards: achados da skill `backend-senior-mentor` (revisão de backend)
 
 ## 🔵 Em Andamento
 
-_(nenhum card em andamento no momento)_
+- [ ] **Bloco Backend Hardening completo (itens 1-5)** — 🔵 este terminal
+  1. Allowlist/validação zod nas rotas PATCH (mass assignment) em `local-db.ts` +
+     `disciplines/[id]`, `profile`, `modules/[id]`.
+  2. Propagar error handling (log + status correto) pra todas as rotas CRUD.
+  3. `zod` como dependência direta de `apps/web`, um schema por rota de POST/PATCH.
+  4. Resolver duplicidade do cálculo FSRS (`fsrs.ts` vs `pedagogy.ts::calcNextReview`).
+  5. Suite de testes mínima com `vitest`, cobrindo o caso de mass assignment.
 
 ---
 
