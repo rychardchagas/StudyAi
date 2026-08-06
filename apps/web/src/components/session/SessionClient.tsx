@@ -8,6 +8,7 @@ import { useTimer } from "@/lib/hooks/useTimer";
 import { Button } from "@/components/ui/Button";
 import { Tip } from "@/components/ui/Tip";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { Target } from "lucide-react";
 import { sendToOrchestrator } from "@/lib/agents/orchestrator";
 import { cn } from "@/lib/utils/cn";
 import type { StudySession } from "@/types";
@@ -22,6 +23,45 @@ const CANNED_COACH_REPLIES = [
 ];
 
 const QUICK_REPLIES = ["⏱ Quanto falta?", "🧠 Quiz rápido", "😓 Estou travado"];
+
+// The active session's DB row id only lived in React state, so any reload — a Fast Refresh
+// during dev, an accidental browser refresh, reopening the tab — lost the link to the row
+// already created, and the mount effect below would create a *new* one instead of resuming,
+// leaving an orphaned "started but never completed" row behind. Persisting the identifying
+// triple here means a reload resumes the same DB row instead of duplicating it.
+const ACTIVE_SESSION_KEY = "studyai:activeSession";
+
+interface StoredActiveSession {
+  sessionId: string;
+  disciplineId: string;
+  moduleId: string;
+}
+
+function readActiveSession(): StoredActiveSession | null {
+  try {
+    const raw = localStorage.getItem(ACTIVE_SESSION_KEY);
+    return raw ? (JSON.parse(raw) as StoredActiveSession) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeActiveSession(data: StoredActiveSession) {
+  try {
+    localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(data));
+  } catch {
+    // localStorage unavailable (private mode, storage full) — session still works,
+    // it just won't survive a reload.
+  }
+}
+
+function clearActiveSession() {
+  try {
+    localStorage.removeItem(ACTIVE_SESSION_KEY);
+  } catch {
+    // nothing to do
+  }
+}
 
 function buildRecallQuestions(moduleName: string, disciplineName: string) {
   const subject = moduleName || disciplineName || "este tema";
@@ -89,16 +129,28 @@ export function SessionClient() {
     }
   }
 
-  // Create the DB row once, on mount, only when we arrived with real params.
+  // Create the DB row once, on mount, only when we arrived with real params — but first check
+  // whether a reload just wiped React state for a session that's already persisted (see
+  // ACTIVE_SESSION_KEY above) and resume that row instead of creating a duplicate.
   useEffect(() => {
     if (createdRef.current) return;
     createdRef.current = true;
     if (!disciplineId) return;
 
+    const resumable = readActiveSession();
+    if (resumable && resumable.disciplineId === disciplineId && resumable.moduleId === moduleId) {
+      setSessionId(resumable.sessionId);
+      return;
+    }
+
     (async () => {
       const id = await createSessionRow();
-      if (id) setSessionId(id);
-      else toast.error("Não foi possível registrar a sessão no servidor — vou tentar de novo ao concluir.");
+      if (id) {
+        setSessionId(id);
+        writeActiveSession({ sessionId: id, disciplineId, moduleId });
+      } else {
+        toast.error("Não foi possível registrar a sessão no servidor — vou tentar de novo ao concluir.");
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -136,7 +188,7 @@ export function SessionClient() {
     return (
       <div className="flex flex-1 flex-col p-6">
         <EmptyState
-          icon="🎯"
+          icon={Target}
           title="Nenhuma sessão selecionada"
           description="Escolha um evento no calendário para iniciar uma sessão de estudo guiada."
           cta="Ir para o calendário"
@@ -213,8 +265,10 @@ export function SessionClient() {
         }),
       });
       if (!res.ok) throw new Error("Failed to complete session");
+      clearActiveSession();
       toast.success("Sessão concluída! Bom trabalho.");
       router.push("/dashboard");
+      router.refresh();
     } catch {
       toast.error("Não foi possível concluir a sessão.");
     } finally {
@@ -237,7 +291,7 @@ export function SessionClient() {
           <div className="mb-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-muted">
             Sessão ativa
           </div>
-          <div className="text-lg font-bold text-txt">
+          <div className="font-serif text-lg font-semibold text-txt">
             {moduleName || disciplineName || "Sessão de estudo"}
           </div>
         </div>
@@ -310,8 +364,8 @@ export function SessionClient() {
             <button
               onClick={timer.toggle}
               className={cn(
-                "flex h-[58px] w-[58px] items-center justify-center rounded-2xl text-2xl text-white transition-all",
-                timer.running ? "border border-danger bg-danger/15" : "bg-primary"
+                "flex h-[58px] w-[58px] items-center justify-center rounded-2xl text-2xl transition-all",
+                timer.running ? "border border-danger bg-danger/15 text-danger" : "bg-primary text-bg"
               )}
             >
               {timer.running ? "⏸" : "▶"}
@@ -388,8 +442,8 @@ export function SessionClient() {
               <button
                 onClick={timer.toggle}
                 className={cn(
-                  "flex h-[42px] w-[42px] items-center justify-center rounded-xl text-base text-white transition-all",
-                  timer.running ? "border border-danger bg-danger/15" : "bg-primary"
+                  "flex h-[42px] w-[42px] items-center justify-center rounded-xl text-base transition-all",
+                  timer.running ? "border border-danger bg-danger/15 text-danger" : "bg-primary text-bg"
                 )}
               >
                 {timer.running ? "⏸" : "▶"}
@@ -484,7 +538,7 @@ export function SessionClient() {
               />
               <button
                 onClick={() => sendCoachMessage(coachInput)}
-                className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded bg-secondary text-[10px] text-white"
+                className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded bg-secondary text-[10px] text-bg"
               >
                 ↑
               </button>

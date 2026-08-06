@@ -199,7 +199,7 @@ export function OnboardingClient() {
           <div className="text-xs font-mono uppercase tracking-widest text-muted mb-1">
             Passo {step} de 4
           </div>
-          <h1 className="text-lg font-bold text-txt mb-1">
+          <h1 className="font-serif text-lg font-semibold text-txt mb-1">
             {["Seu perfil", "Suas matérias", "Conteúdo", "Disponibilidade"][step - 1]}
           </h1>
 

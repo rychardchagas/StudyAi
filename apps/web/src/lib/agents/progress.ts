@@ -34,20 +34,39 @@ export function countPendingReviews(modules: Module[], now: Date = new Date()): 
   return modules.filter((m) => m.fsrs_due_date && new Date(m.fsrs_due_date) <= now).length;
 }
 
-export function generateInsights(sessions: StudySession[], modules: Module[]): string[] {
-  const insights: string[] = [];
+// Oldest → today, 7 entries. Powers the sidebar's streak bar (see Sidebar.tsx).
+export function last7Days(sessions: StudySession[], now: Date = new Date()): boolean[] {
+  const completedDays = new Set(
+    sessions.filter((s) => s.completed && s.completed_at).map((s) => new Date(s.completed_at!).toDateString())
+  );
+  const days: boolean[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    days.push(completedDays.has(d.toDateString()));
+  }
+  return days;
+}
+
+export interface Insight {
+  text: string;
+  agent: "Progress Agent" | "Pedagogy Agent";
+}
+
+export function generateInsights(sessions: StudySession[], modules: Module[]): Insight[] {
+  const insights: Insight[] = [];
   const adherence = calcWeeklyAdherence(sessions);
   const streak = calcStreakDays(sessions);
   const pending = countPendingReviews(modules);
 
   if (adherence < 50 && sessions.length > 0) {
-    insights.push(`Sua aderência esta semana está em ${adherence}% — abaixo da meta.`);
+    insights.push({ text: `Sua aderência esta semana está em ${adherence}% — abaixo da meta.`, agent: "Progress Agent" });
   }
   if (streak >= 3) {
-    insights.push(`Streak de ${streak} dias consecutivos — continue assim!`);
+    insights.push({ text: `Streak de ${streak} dias consecutivos — continue assim!`, agent: "Progress Agent" });
   }
   if (pending > 5) {
-    insights.push(`${pending} revisões atrasadas. Priorize-as na próxima sessão.`);
+    insights.push({ text: `${pending} revisões atrasadas. Priorize-as na próxima sessão.`, agent: "Pedagogy Agent" });
   }
   return insights;
 }
