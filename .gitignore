@@ -12,3 +12,4 @@ apps/web/data/
 .claude/settings.local.json
 .claude/settings.json
 docs/KANBAN.md
+.claude/skills/ui-ux-design-mentor/
