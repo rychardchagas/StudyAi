@@ -62,11 +62,19 @@ export function generateCalendar(
     }
   }
 
+  // Interleave slots across days first (Mon-slot, Tue-slot, Wed-slot, ...) instead of exhausting
+  // one day before moving to the next. The round-robin discipline queue below is walked in this
+  // same order — if `available` were sorted day-by-day instead, the queue's alignment with day
+  // boundaries would be accidental, and a lower-weight discipline could land entirely on whichever
+  // days happen to come first in the week instead of being spread across it.
   const available: Array<{ col: number; slot: number }> = [];
-  for (let col = 0; col < 7; col++) {
-    (availSlots[col] || []).forEach((slot) => available.push({ col, slot }));
+  const byDay = Array.from({ length: 7 }, (_, col) => [...(availSlots[col] || [])].sort((a, b) => a - b));
+  const maxPerDay = Math.max(0, ...byDay.map((d) => d.length));
+  for (let r = 0; r < maxPerDay; r++) {
+    for (let col = 0; col < 7; col++) {
+      if (byDay[col][r] !== undefined) available.push({ col, slot: byDay[col][r] });
+    }
   }
-  available.sort((a, b) => a.col !== b.col ? a.col - b.col : a.slot - b.slot);
 
   const weights = disciplines.map((d) => Math.max(1, d.horas_semana + (PRI_BONUS[d.prioridade] ?? 0)));
   const totalW = weights.reduce((a, b) => a + b, 0);
@@ -91,20 +99,24 @@ export function generateCalendar(
     const key = `${col}-${slot}`;
     if (placed.has(key)) continue;
 
-    const alloc = queue[qi];
-    const disc = alloc.disc;
-
-    if (colLastDisc[col] === disc.id && disciplines.length > 1) {
-      let swapped = false;
+    // Look ahead in the queue for a different discipline before committing to this slot — done
+    // *before* reading `alloc`/`disc` below, since queue[qi] is what actually gets placed; an
+    // earlier version swapped queue entries but then still read the pre-swap reference, so the
+    // swap never affected the slot it was meant to fix.
+    if (colLastDisc[col] === queue[qi].disc.id && disciplines.length > 1) {
       for (let k = qi + 1; k < Math.min(qi + 5, queue.length); k++) {
-        if (queue[k].disc.id !== disc.id) {
+        if (queue[k].disc.id !== queue[qi].disc.id) {
           [queue[qi], queue[k]] = [queue[k], queue[qi]];
-          swapped = true;
           break;
         }
       }
-      if (!swapped) { qi++; continue; }
+      // If no swap candidate was found nearby, fall through and place this discipline anyway —
+      // an occasional same-day repeat is better than silently dropping the session and leaving
+      // an unexplained gap in the calendar.
     }
+
+    const alloc = queue[qi];
+    const disc = alloc.disc;
 
     const sc = sessionCount[disc.id] ?? 0;
     const mod = pickModuleForSession(disc, sc);

@@ -127,6 +127,26 @@ export function deleteDiscipline(id: string): void {
   getDb().prepare(`DELETE FROM disciplines WHERE id = ?`).run(id);
 }
 
+// Discipline.progress is a plain stored number, set once at creation (default 0) and never
+// auto-derived from module completion anywhere — there's no UI to edit it directly either, so it
+// drifts from reality as modules get marked done. This recomputes it from actual module status
+// for every discipline that has modules, and returns how many rows actually changed.
+export function recalculateAllProgress(): { updated: number; total: number } {
+  const disciplines = listDisciplines();
+  let updated = 0;
+  for (const d of disciplines) {
+    const modules = d.modules ?? [];
+    if (!modules.length) continue;
+    const doneCount = modules.filter((m) => m.status === "done").length;
+    const nextProgress = Math.round((doneCount / modules.length) * 100);
+    if (nextProgress !== d.progress) {
+      updateDiscipline(d.id, { progress: nextProgress });
+      updated++;
+    }
+  }
+  return { updated, total: disciplines.length };
+}
+
 // --- Modules ---
 
 export function listModules(disciplineId?: string): Module[] {

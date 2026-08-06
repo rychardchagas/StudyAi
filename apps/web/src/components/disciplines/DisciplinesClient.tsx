@@ -9,11 +9,13 @@ import { Button } from "@/components/ui/Button";
 import { InlineEdit } from "@/components/ui/InlineEdit";
 import { Tip } from "@/components/ui/Tip";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { BookOpen } from "lucide-react";
 import { useDisciplines } from "@/lib/hooks/useDisciplines";
 import { calcETA } from "@/lib/utils/fsrs";
 import { DAYS_LABELS, SLOT_LABELS } from "@/lib/utils/constants";
 import type { ParsedModule } from "@/lib/agents/curriculum";
-import type { Discipline, FixedSlot, ModuleStatus, Priority } from "@/types";
+import { selectMethodology } from "@/lib/agents/pedagogy";
+import type { Discipline, FixedSlot, Module, ModuleStatus, Priority } from "@/types";
 
 const DISC_COLORS = [
   "#3B82F6", "#8B5CF6", "#22C55E", "#F59E0B", "#EF4444",
@@ -25,6 +27,27 @@ const PRIORITIES: Priority[] = ["Alta", "Média", "Baixa"];
 function daysUntil(examDate: string | null): number | null {
   if (!examDate) return null;
   return Math.max(0, Math.ceil((new Date(examDate).getTime() - Date.now()) / 86400000));
+}
+
+// Same "which module should this session cover" preference as the Scheduler agent's
+// pickModuleForSession, minus the review-rotation logic (there's no session count here —
+// this is a one-off manual "study this now" click, not a generated calendar slot).
+function pickStudyModule(modules: Module[]): Module | undefined {
+  return modules.find((m) => m.status === "prog") ?? modules.find((m) => m.status === "pend") ?? modules[0];
+}
+
+function buildSessionHref(d: Discipline, modules: Module[]): string {
+  const mod = pickStudyModule(modules);
+  const methodology = selectMethodology(mod?.status ?? "pend", daysUntil(d.exam_date), 0);
+  const params = new URLSearchParams({
+    disciplineId: d.id,
+    moduleId: mod?.id ?? "",
+    methodology,
+    duration: "45",
+    disciplineName: d.name,
+    moduleName: mod?.name ?? d.name,
+  });
+  return `/session?${params.toString()}`;
 }
 
 // Reimplementation of the prototype's urgencyBorder() (~L229-235) as Tailwind classes.
@@ -191,7 +214,7 @@ export function DisciplinesClient({ initialDisciplines }: { initialDisciplines: 
           <div className="font-mono text-[10px] font-semibold tracking-[0.1em] uppercase text-muted mb-0.5">
             Gestão
           </div>
-          <div className="text-lg font-bold text-txt mb-1">Matérias</div>
+          <div className="font-serif text-lg font-semibold text-txt mb-1">Matérias</div>
           <div className="text-xs text-dim">
             Calendário gerado proporcionalmente às horas de cada matéria.
           </div>
@@ -307,7 +330,7 @@ export function DisciplinesClient({ initialDisciplines }: { initialDisciplines: 
 
       {disciplines.length === 0 ? (
         <EmptyState
-          icon="📚"
+          icon={BookOpen}
           title="Nenhuma matéria ainda"
           description="Adicione sua primeira disciplina para que o StudyAI gere um calendário personalizado com base nas suas horas e módulos."
           cta="+ Adicionar primeira matéria"
@@ -598,7 +621,7 @@ export function DisciplinesClient({ initialDisciplines }: { initialDisciplines: 
                   <div className="text-[11px] text-muted">
                     <strong className="text-dim">{doneCount}</strong>/{modules.length} módulos concluídos
                   </div>
-                  <Link href="/session">
+                  <Link href={buildSessionHref(d, modules)}>
                     <Button size="sm">▶ Estudar</Button>
                   </Link>
                 </div>
