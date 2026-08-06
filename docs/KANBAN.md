@@ -55,9 +55,13 @@ Origem dos cards: achados da skill `backend-senior-mentor` (revisão de backend)
 
 ### DevSecOps — escada de maturidade
 
-- [ ] **Stage 2 — Scanning**
-  Dependabot (`.github/dependabot.yml`, ecossistema npm, weekly) + secret scanning (nativo do
-  GitHub, só habilitar em Settings → Security) + CodeQL (`javascript-typescript`) como job de CI.
+- [x] **Stage 2a — Dependabot** — ✅ commit `d673992`
+  `.github/dependabot.yml` criado (ecossistema npm/pnpm + github-actions, weekly).
+- [ ] **Stage 2b — Secret scanning + push protection**
+  Nativo do GitHub, só habilitar em Settings → Code security and analysis (repo é público, é
+  grátis). Requer permissão de admin do repo — não dá pra fazer via API com o token atual (403).
+- [ ] **Stage 2c — SAST (CodeQL)**
+  `javascript-typescript` como job de CI ou workflow separado.
 
 - [ ] **Stage 3 — Gate de testes obrigatório**
   Depende da suite mínima acima. Adicionar `pnpm test` ao CI e marcar como *required check* em
@@ -74,10 +78,7 @@ Origem dos cards: achados da skill `backend-senior-mentor` (revisão de backend)
 
 ## 🔵 Em Andamento
 
-- [ ] **Stage 1 — CI básico** — 🔵 outro terminal
-  `.github/workflows/ci.yml` já criado localmente (lint + type-check + build), ainda não
-  commitado. Confirmar se pnpm/action-setup@v4 versão 11 está correto (bate com `pnpm --version`
-  local = 11.17.0) e commitar quando validado.
+_(nenhum card em andamento no momento)_
 
 ---
 
@@ -89,5 +90,12 @@ Origem dos cards: achados da skill `backend-senior-mentor` (revisão de backend)
   (`Contents`, `Pull requests`, `Issues`), configurado via `GH_TOKEN` de usuário.
 - [x] **Skills de aprendizado criadas** — `study-methodology-mentor`, `backend-senior-mentor`,
   `devsecops-cycle-coach` em `.claude/skills/`.
-- [x] **Skill de UI/UX criada** — 🔵 outro terminal — `ui-ux-design-mentor` em `.claude/skills/`,
-  ainda não commitada.
+- [x] **Skill de UI/UX criada** — `ui-ux-design-mentor` em `.claude/skills/`, commit `d673992`.
+- [x] **Stage 0 — Baseline hygiene** — confirmado: `.gitignore` cobre segredos, `.env.local` nunca
+  foi commitado (checado com `git log --all --full-history`).
+- [x] **Stage 1 — CI básico** — `.github/workflows/ci.yml` (lint + type-check + build), commits
+  `ed73139`..`cf792ef`. No processo, achados e corrigidos 5 bugs reais pré-existentes: Node <22.13
+  incompatível com pnpm 11, `packageManager` faltando no `package.json` raiz (quebrava resolução do
+  workspace do Turborepo mesmo local), ESLint sem config (`next lint` travava interativo),
+  `RECALL_QS` duplicado no protótipo morto (excluído do lint), conflito de versão pnpm entre
+  Action e `package.json` (resolvido deixando só uma fonte de verdade).
