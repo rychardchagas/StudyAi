@@ -1,9 +1,21 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Source_Serif_4, IBM_Plex_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+// Sans for UI copy, serif for editorial headings, mono for stats/numbers — each exposed as a
+// CSS variable and wired into the `sans`/`serif`/`mono` keys in tailwind.config.ts.
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-serif",
+});
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono",
+});
 
 export const metadata: Metadata = {
   title: "StudyAI — Calendário de Estudos Inteligente",
@@ -17,15 +29,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body className={inter.className}>
+      <body className={`${inter.variable} ${sourceSerif.variable} ${plexMono.variable} font-sans`}>
         {children}
         <Toaster
           position="bottom-center"
           toastOptions={{
             style: {
-              background: "#18181C",
-              color: "#F4F4F6",
-              border: "1px solid rgba(255,255,255,.07)",
+              background: "oklch(var(--card))",
+              color: "oklch(var(--txt))",
+              border: "1px solid oklch(var(--border))",
               fontSize: "13px",
             },
           }}

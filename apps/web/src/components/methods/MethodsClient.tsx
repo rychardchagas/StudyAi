@@ -181,7 +181,7 @@ export function MethodsClient() {
         <div className="mb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
           Referência
         </div>
-        <div className="mb-1 text-lg font-bold text-txt">Metodologias de Aprendizagem</div>
+        <div className="mb-1 font-serif text-lg font-semibold text-txt">Metodologias de Aprendizagem</div>
         <div className="text-xs leading-relaxed text-dim">
           Guia das técnicas aplicadas pelo Pedagogy Agent. Clique para ver como usar na prática.
         </div>

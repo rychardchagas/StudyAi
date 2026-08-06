@@ -2,12 +2,28 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import {
+  CalendarDays,
+  Clock,
+  Target,
+  Repeat,
+  Zap,
+  BookOpen,
+  Brain,
+  CalendarClock,
+  TrendingUp,
+  Bell,
+  ShieldCheck,
+  type LucideIcon,
+} from "lucide-react";
 import { useCalendar } from "@/lib/hooks/useCalendar";
 import { useAI } from "@/lib/hooks/useAI";
-import { calcWeeklyAdherence, calcStreakDays, countPendingReviews } from "@/lib/agents/progress";
+import { calcWeeklyAdherence, calcStreakDays, countPendingReviews, generateInsights } from "@/lib/agents/progress";
 import type { OrchestratorContext } from "@/lib/agents/orchestrator";
 import { StatCard } from "@/components/shared/StatCard";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { ActivityHeatmap } from "@/components/shared/ActivityHeatmap";
+import { InsightsList } from "@/components/shared/InsightsList";
 import { Button } from "@/components/ui/Button";
 import { CalGrid } from "@/components/calendar/CalGrid";
 import { EventDrawer } from "@/components/calendar/EventDrawer";
@@ -21,8 +37,29 @@ interface DashboardClientProps {
   initialAvailability?: Record<number, number[]>;
 }
 
-const SUGGESTIONS = ["⏱ Quanto falta?", "🧠 Quiz", "😓 Sobrecarregado"];
+interface Agent {
+  name: string;
+  description: string;
+  Icon: LucideIcon;
+  active: boolean;
+}
+
+const AGENTS: Agent[] = [
+  { name: "Curriculum Agent", description: "Organiza seus módulos a partir do conteúdo enviado", Icon: BookOpen, active: true },
+  { name: "Pedagogy Agent", description: "Define metodologia e intervalos de repetição espaçada", Icon: Brain, active: true },
+  { name: "Scheduler Agent", description: "Distribui sessões nos seus horários livres", Icon: CalendarClock, active: true },
+  { name: "Progress Agent", description: "Acompanha aderência, streaks e gera insights", Icon: TrendingUp, active: true },
+  { name: "QA Agent", description: "Valida o calendário antes de entregar", Icon: ShieldCheck, active: true },
+  { name: "Notification Agent", description: "Decide lembretes e relatórios locais", Icon: Bell, active: false },
+];
+
+const SUGGESTIONS = ["Quanto falta?", "Quiz", "Sobrecarregado"];
 const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+const HEATMAP_WEEKS_BACK = 8;
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 export function DashboardClient({ initialDisciplines, initialSessions, initialAvailability }: DashboardClientProps) {
   const router = useRouter();
@@ -50,12 +87,16 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
     return `${startLabel}–${end.getDate()} ${MONTHS[end.getMonth()]}, ${end.getFullYear()}`;
   }, [weekDates]);
 
+  const todayLabel = useMemo(
+    () => capitalize(new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long" }).format(new Date())),
+    []
+  );
+
   const weeklyAdherence = useMemo(() => calcWeeklyAdherence(initialSessions), [initialSessions]);
   const streakDays = useMemo(() => calcStreakDays(initialSessions), [initialSessions]);
-  const pendingReviews = useMemo(
-    () => countPendingReviews(initialDisciplines.flatMap((d) => d.modules ?? [])),
-    [initialDisciplines]
-  );
+  const allModules = useMemo(() => initialDisciplines.flatMap((d) => d.modules ?? []), [initialDisciplines]);
+  const pendingReviews = useMemo(() => countPendingReviews(allModules), [allModules]);
+  const insights = useMemo(() => generateInsights(initialSessions, allModules), [initialSessions, allModules]);
 
   const orchestratorContext: OrchestratorContext = useMemo(
     () => ({
@@ -123,7 +164,7 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
     return (
       <div className="flex flex-col flex-1 overflow-hidden">
         <EmptyState
-          icon="📅"
+          icon={CalendarDays}
           title="Calendário vazio"
           description="Adicione suas matérias para que o StudyAI gere um calendário personalizado com repetição espaçada e interleaving."
           cta="Ir para Matérias"
@@ -134,15 +175,32 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
   }
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
-      <div className="px-4 pt-2.5 pb-2 grid grid-cols-4 gap-2 shrink-0">
-        <StatCard icon="📅" iconBg="rgba(59,130,246,.12)" value={events.length} label="sessões esta semana" />
-        <StatCard icon="⏱" iconBg="rgba(139,92,246,.12)" value={`${hoursPlanned}h`} label="tempo planejado" />
-        <StatCard icon="✅" iconBg="rgba(34,197,94,.1)" value={`${weeklyAdherence}%`} label="aderência" />
-        <StatCard icon="🔁" iconBg="rgba(245,158,11,.1)" value={spacedReviews} label="revisões espaçadas" />
+    <div className="flex flex-col flex-1 overflow-y-auto">
+      <div className="px-5 pt-5 pb-3 flex items-end justify-between gap-4 flex-wrap shrink-0">
+        <div>
+          <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-muted mb-1.5">
+            {todayLabel}
+          </div>
+          <h1 className="font-serif text-2xl font-semibold text-txt leading-tight">Seu painel de estudos</h1>
+          <p className="text-sm text-dim mt-1">
+            {disciplines.length} {disciplines.length === 1 ? "matéria ativa" : "matérias ativas"}
+            {pendingReviews > 0 && ` · ${pendingReviews} ${pendingReviews === 1 ? "revisão pendente" : "revisões pendentes"}`}
+          </p>
+        </div>
+        <Button variant="primary" onClick={handleRegenerate} disabled={generating}>
+          <Zap className="w-4 h-4" strokeWidth={2.25} />
+          Replanejar
+        </Button>
       </div>
 
-      <div className="flex flex-1 overflow-hidden mx-4 mb-3.5 border border-border rounded-xl">
+      <div className="px-4 pb-3 grid grid-cols-4 gap-2 shrink-0">
+        <StatCard icon={CalendarDays} accent="secondary" value={events.length} label="sessões esta semana" />
+        <StatCard icon={Clock} accent="secondary" value={`${hoursPlanned}h`} label="tempo planejado" />
+        <StatCard icon={Target} accent="success" value={`${weeklyAdherence}%`} label="aderência" />
+        <StatCard icon={Repeat} accent="primary" value={spacedReviews} label="revisões espaçadas" />
+      </div>
+
+      <div className="flex h-[580px] overflow-hidden mx-4 mb-3.5 border border-border rounded-xl shrink-0">
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="px-3.5 py-2 border-b border-border flex items-center justify-between gap-2 flex-wrap shrink-0">
             <div className="flex items-center gap-1.5">
@@ -184,23 +242,44 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
                 </div>
               ))}
             </div>
-            <Button variant="primary" size="sm" onClick={handleRegenerate} disabled={generating}>
-              ⚡ Replanejar
-            </Button>
           </div>
           <CalGrid events={events} onClickEvent={setSelectedEvent} weekDates={weekDates} />
         </div>
 
         {/* AI Panel */}
-        <div className="w-[245px] shrink-0 bg-surface border-l border-border flex flex-col">
-          <div className="px-3 py-2 border-b border-border flex items-center gap-1.5 shrink-0">
-            <div className="w-1.5 h-1.5 rounded-full bg-secondary shrink-0" />
-            <div>
-              <div className="text-xs font-semibold text-txt">Assistente IA</div>
-              <div className="font-mono text-[9px] text-muted">Orchestrator · ativo</div>
+        <div className="w-[320px] shrink-0 bg-surface border-l border-border flex flex-col overflow-hidden">
+          <div className="px-3 py-2.5 border-b border-border shrink-0">
+            <div className="text-xs font-semibold text-txt">Agentes de IA</div>
+            <div className="font-mono text-[9px] text-muted mt-0.5">
+              {AGENTS.filter((a) => a.active).length} de {AGENTS.length} ativos agora
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-2.5 flex flex-col gap-1.5">
+
+          <div className="px-2 py-1.5 border-b border-border shrink-0 flex flex-col">
+            {AGENTS.map((agent) => (
+              <div key={agent.name} className="flex items-start gap-2 px-1.5 py-1.5 rounded-md">
+                <agent.Icon className="w-3.5 h-3.5 text-secondary mt-0.5 shrink-0" strokeWidth={2} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-medium text-txt truncate">{agent.name}</div>
+                  <div className="text-[10px] text-muted leading-snug line-clamp-1">{agent.description}</div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0 mt-1">
+                  <div className={`w-1.5 h-1.5 rounded-full ${agent.active ? "bg-secondary" : "bg-muted"}`} />
+                  <span className="font-mono text-[8px] uppercase tracking-wide text-muted">
+                    {agent.active ? "ativo" : "espera"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="px-3 py-1.5 border-b border-border shrink-0 flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-secondary shrink-0" />
+            <span className="text-[10px] text-muted">
+              Pergunte ao <span className="text-secondary font-medium">Orchestrator</span>
+            </span>
+          </div>
+          <div className="flex-1 min-h-[80px] overflow-y-auto p-2.5 flex flex-col gap-1.5">
             {messages.map((m, i) => (
               <div key={i}>
                 <div
@@ -223,7 +302,7 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
             ))}
             {loading && <div className="text-[11px] text-muted">StudyAI está digitando…</div>}
           </div>
-          <div className="flex flex-wrap gap-1 px-2.5 pb-1.5">
+          <div className="flex flex-wrap gap-1 px-2.5 pb-1.5 shrink-0">
             {SUGGESTIONS.map((s) => (
               <button
                 key={s}
@@ -242,7 +321,7 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
               handleSend(chatInput);
               setChatInput("");
             }}
-            className="p-2 border-t border-border flex gap-1.5"
+            className="p-2 border-t border-border flex gap-1.5 shrink-0"
           >
             <input
               value={chatInput}
@@ -254,6 +333,51 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
               →
             </Button>
           </form>
+        </div>
+      </div>
+
+      <div className="px-4 pb-5 shrink-0">
+        <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-muted mb-2">
+          Seu progresso
+        </div>
+        <div className="grid grid-cols-2 gap-2.5 mb-2.5">
+          <div className="bg-card border border-border rounded-lg p-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-2 pb-1.5 border-b border-border">
+              Mapa de atividade — {HEATMAP_WEEKS_BACK} semanas
+            </div>
+            <ActivityHeatmap sessions={initialSessions} weeksBack={HEATMAP_WEEKS_BACK} />
+          </div>
+
+          <div className="bg-card border border-border rounded-lg p-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-2 pb-1.5 border-b border-border">
+              Progresso por matéria
+            </div>
+            <div className="flex flex-col gap-2.5">
+              {disciplines.map((d) => (
+                <div key={d.id} className="flex items-center gap-2.5">
+                  <span className="text-[11px] text-dim w-[110px] shrink-0 overflow-hidden text-ellipsis whitespace-nowrap">
+                    {d.name}
+                  </span>
+                  <div className="flex-1 h-[5px] bg-card2 rounded-full overflow-hidden">
+                    <div className="h-[5px] rounded-full" style={{ background: d.color, width: `${d.progress}%` }} />
+                  </div>
+                  <span className="font-mono text-[10px] text-muted w-[30px] text-right shrink-0">
+                    {d.progress}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-lg p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-2 pb-1.5 border-b border-border">
+            Insights dos agentes
+          </div>
+          <InsightsList
+            insights={insights}
+            emptyText="Continue estudando para desbloquear insights personalizados dos agentes."
+          />
         </div>
       </div>
 

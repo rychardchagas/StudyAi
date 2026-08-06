@@ -12,7 +12,7 @@ export function Button({ variant = "outline", size = "md", className, children, 
       className={cn(
         "inline-flex items-center gap-1.5 font-medium rounded-lg cursor-pointer transition-all",
         {
-          "bg-primary border-primary text-white hover:opacity-90": variant === "primary",
+          "bg-primary border-primary text-bg hover:opacity-90": variant === "primary",
           "bg-transparent border-transparent text-dim hover:text-txt": variant === "ghost",
           "bg-card border border-border text-dim hover:border-border2 hover:text-txt": variant === "outline",
           "bg-lav/10 border border-lav/25 text-secondary": variant === "lav",
