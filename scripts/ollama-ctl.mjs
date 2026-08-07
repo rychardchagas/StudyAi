@@ -32,20 +32,49 @@ function isRunning() {
   }
 }
 
-function start() {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// spawn()'s "error" event only fires for spawn-level failures (binary not found) — it says
+// nothing about the server binding successfully. Without this, a port conflict or a corrupted
+// install would still print "Ollama iniciado" even though nothing is actually listening.
+async function waitUntilRunning(shouldAbort, retries = 10, intervalMs = 500) {
+  for (let i = 0; i < retries; i++) {
+    if (shouldAbort()) return false;
+    if (isRunning()) return true;
+    await sleep(intervalMs);
+  }
+  return isRunning();
+}
+
+async function start() {
   if (isRunning()) {
     console.log("Ollama já está rodando em " + BASE_URL + ".");
     return;
   }
   const bin = resolveOllamaBin();
+  let spawnFailed = false;
   const child = spawn(bin, ["serve"], { detached: true, stdio: "ignore" });
   child.on("error", (err) => {
+    spawnFailed = true;
     console.error(`Não consegui iniciar o Ollama (${bin}): ${err.message}`);
     console.error("Se acabou de instalar, feche e reabra o terminal (PATH precisa atualizar) e tente de novo.");
-    process.exit(1);
   });
   child.unref();
-  console.log(`Ollama iniciado em segundo plano (PID ${child.pid}). Modelo carrega sob demanda na primeira chamada.`);
+
+  const ok = await waitUntilRunning(() => spawnFailed);
+  if (spawnFailed) {
+    process.exit(1);
+  }
+  if (!ok) {
+    console.error(
+      `Ollama não respondeu em ${BASE_URL} depois de alguns segundos — pode ser porta ocupada ` +
+        "ou instalação corrompida. Confira manualmente (ex: abra a URL no navegador)."
+    );
+    process.exit(1);
+  }
+  console.log(`Ollama rodando em ${BASE_URL} (PID ${child.pid}). Modelo carrega sob demanda na primeira chamada.`);
 }
 
 function tryKill(cmd, args) {
