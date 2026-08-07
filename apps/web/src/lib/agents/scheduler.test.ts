@@ -140,4 +140,21 @@ describe("generateCalendar distribution", () => {
     const week1Modules = week1.map((e) => e.moduleId).join(",");
     expect(week1Modules).not.toBe(week0Modules);
   });
+
+  it("stops scheduling 'new' content once the projected pace has covered it all, switching to review", () => {
+    // 2 pend modules, high weekly quota (10h/wk, 1 discipline, generous availability) — the
+    // projection should cover both well within a couple of weeks.
+    const modules = [
+      makeModule({ id: "m0", name: "Module 0", status: "pend" }),
+      makeModule({ id: "m1", name: "Module 1", status: "pend" }),
+    ];
+    const disc = makeDiscipline({ id: "a", name: "A", horas_semana: 10, prioridade: "Alta", modules });
+    const availability = { 0: [1, 2, 3, 4, 5, 6], 1: [1, 2, 3, 4, 5, 6] };
+
+    const farFuture = generateCalendar([disc], availability, { weekIndex: 10 });
+    expect(farFuture.length).toBeGreaterThan(0);
+    // Every session should now be framed as review, not fresh "new content".
+    expect(farFuture.every((e) => e.moduleName.startsWith("🔁 Revisão"))).toBe(true);
+    expect(farFuture.every((e) => e.methodology !== "Prática Deliberada")).toBe(true);
+  });
 });

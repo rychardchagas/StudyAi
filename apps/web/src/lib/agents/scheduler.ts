@@ -18,20 +18,23 @@ const DEFAULT_AVAIL: Record<number, number[]> = {
 
 const PRI_BONUS: Record<string, number> = { Alta: 2, Média: 0, Baixa: -1 };
 
-function pickModuleForSession(disc: Discipline, sc: number, asOf: number) {
+function pickModuleForSession(disc: Discipline, sc: number, asOf: number, allCovered: boolean) {
   const mods = disc.modules ?? [];
   const inProg = mods.find((m) => m.status === "prog");
   const pend = mods.filter((m) => m.status === "pend");
   const done = mods.filter((m) => m.status === "done");
-  if (sc % 3 === 2 && done.length) {
-    // Real spaced-repetition due date (lib/utils/fsrs.ts::scheduleCard, wired in
-    // sessions/complete) beats the rotation whenever something is actually due — a module you
-    // just aced two weeks ago and one you're overdue on shouldn't get the same review slot.
+
+  // Once the projected pace has covered every pending module by this week (see contentCovered
+  // in generateCalendar), there's no "new" content left to schedule — everything becomes spaced
+  // review across the whole discipline instead of looping the same modules forever as if they
+  // were still fresh. Real FSRS due dates still take priority within that review pool.
+  const reviewPool = allCovered ? mods : done;
+  if ((allCovered || sc % 3 === 2) && reviewPool.length) {
     // `asOf` is "now" for this week (week 0) or a projected date for a future week being browsed
     // — a review due in 10 days shouldn't show as due when generating next week's plan.
-    const due = done.filter((m) => m.fsrs_due_date && new Date(m.fsrs_due_date).getTime() <= asOf);
+    const due = reviewPool.filter((m) => m.fsrs_due_date && new Date(m.fsrs_due_date).getTime() <= asOf);
     if (due.length) return due[sc % due.length];
-    return done[sc % done.length]; // nothing's due yet — keep the rotation so review slots aren't wasted
+    return reviewPool[sc % reviewPool.length]; // nothing's due yet — keep the rotation so review slots aren't wasted
   }
   return inProg ?? pend[sc % pend.length] ?? done[0];
 }
@@ -71,6 +74,37 @@ export function generateCalendar(
   const sessionCount: Record<string, number> = {};
   const fixedCount: Record<string, number> = {};
 
+  // Interleave slots across days first (Mon-slot, Tue-slot, Wed-slot, ...) instead of exhausting
+  // one day before moving to the next — computed up front (doesn't depend on the fixed-schedule
+  // loop below) so its length is available for the content-covered estimate next.
+  const available: Array<{ col: number; slot: number }> = [];
+  const byDay = Array.from({ length: 7 }, (_, col) => [...(effectiveAvail[col] || [])].sort((a, b) => a - b));
+  const maxPerDay = Math.max(0, ...byDay.map((d) => d.length));
+  for (let r = 0; r < maxPerDay; r++) {
+    for (let col = 0; col < 7; col++) {
+      if (byDay[col][r] !== undefined) available.push({ col, slot: byDay[col][r] });
+    }
+  }
+
+  const weights = disciplines.map((d) => Math.max(1, d.horas_semana + (PRI_BONUS[d.prioridade] ?? 0)));
+  const totalW = weights.reduce((a, b) => a + b, 0);
+
+  // A discipline's content isn't infinite — once its current weekly pace would have covered all
+  // pending modules by the week being generated, stop treating it as having "new" content to
+  // schedule (mirrors calcETA in lib/utils/fsrs.ts, in sessions rather than hours since the
+  // rotation itself works in sessions). Rough estimate (doesn't subtract fixed-schedule slots)
+  // since this only gates a projection, not the precise weekly allocation computed below.
+  const contentCovered: Record<string, boolean> = {};
+  disciplines.forEach((disc, i) => {
+    const pendCount = (disc.modules ?? []).filter((m) => m.status !== "done").length;
+    if (pendCount === 0) {
+      contentCovered[disc.id] = true;
+      return;
+    }
+    const roughWeeklyQuota = Math.max(1, Math.round((weights[i] / totalW) * available.length * 0.88));
+    contentCovered[disc.id] = weekIndex >= Math.ceil(pendCount / roughWeeklyQuota);
+  });
+
   // Recurring pinned slots (e.g. a fixed weekly class) are placed first and unconditionally —
   // they happen every week regardless of what's marked "available" for proportional scheduling.
   for (const disc of disciplines) {
@@ -79,7 +113,7 @@ export function generateCalendar(
       const key = `${dayOfWeek}-${slotIndex}`;
       if (placed.has(key)) continue; // another discipline already claimed this slot — first one wins
       const sc = sessionCount[disc.id] ?? 0;
-      const mod = pickModuleForSession(disc, sc, asOf);
+      const mod = pickModuleForSession(disc, sc, asOf, contentCovered[disc.id]);
       events.push({
         disciplineId: disc.id,
         disciplineName: disc.name,
@@ -96,23 +130,6 @@ export function generateCalendar(
       fixedCount[disc.id] = (fixedCount[disc.id] ?? 0) + 1;
     }
   }
-
-  // Interleave slots across days first (Mon-slot, Tue-slot, Wed-slot, ...) instead of exhausting
-  // one day before moving to the next. The round-robin discipline queue below is walked in this
-  // same order — if `available` were sorted day-by-day instead, the queue's alignment with day
-  // boundaries would be accidental, and a lower-weight discipline could land entirely on whichever
-  // days happen to come first in the week instead of being spread across it.
-  const available: Array<{ col: number; slot: number }> = [];
-  const byDay = Array.from({ length: 7 }, (_, col) => [...(effectiveAvail[col] || [])].sort((a, b) => a - b));
-  const maxPerDay = Math.max(0, ...byDay.map((d) => d.length));
-  for (let r = 0; r < maxPerDay; r++) {
-    for (let col = 0; col < 7; col++) {
-      if (byDay[col][r] !== undefined) available.push({ col, slot: byDay[col][r] });
-    }
-  }
-
-  const weights = disciplines.map((d) => Math.max(1, d.horas_semana + (PRI_BONUS[d.prioridade] ?? 0)));
-  const totalW = weights.reduce((a, b) => a + b, 0);
 
   const allocations = disciplines.map((disc, i) => ({
     disc,
@@ -164,20 +181,24 @@ export function generateCalendar(
     const disc = alloc.disc;
 
     const sc = sessionCount[disc.id] ?? 0;
-    const mod = pickModuleForSession(disc, sc, asOf);
+    const allCovered = contentCovered[disc.id];
+    const mod = pickModuleForSession(disc, sc, asOf, allCovered);
     const done = (disc.modules ?? []).filter((m) => m.status === "done");
 
     const daysToExam = disc.exam_date
       ? Math.max(0, Math.ceil((new Date(disc.exam_date).getTime() - asOf) / 86400000))
       : null;
 
+    // Once content is fully covered, treat the module as "done" for methodology purposes too
+    // (real recall/review), regardless of its actual DB status — this is a projection of where
+    // the student *should* be at this pace, not a claim about what's actually been marked done.
     const methodology = selectMethodology(
-      mod?.status ?? "pend",
+      allCovered ? "done" : mod?.status ?? "pend",
       daysToExam,
       sc,
       mod ? { lapses: mod.fsrs_lapses, reps: mod.fsrs_reps } : undefined
     );
-    const isReview = sc % 3 === 2 && done.length > 0;
+    const isReview = allCovered || (sc % 3 === 2 && done.length > 0);
 
     events.push({
       disciplineId: disc.id,

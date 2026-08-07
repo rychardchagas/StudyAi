@@ -3,6 +3,7 @@
  * Tracks adherence, streaks, and pending reviews; surfaces plain-language insights
  */
 import type { Discipline, Module, StudySession } from "@/types";
+import { calcETA } from "@/lib/utils/fsrs";
 
 export function calcWeeklyAdherence(sessions: StudySession[], now: Date = new Date()): number {
   const weekStart = new Date(now);
@@ -61,6 +62,25 @@ export interface DisciplinePace {
   detail: string;
   expectedProgress: number | null; // % expected by now, given exam_date and when the discipline was added; null when there's no exam_date to project against
   actualProgress: number;
+  /** Weeks until all pending module content is covered at the discipline's current
+   * horas_semana pace (lib/utils/fsrs.ts::calcETA) — null once nothing is left pending. Computed
+   * regardless of exam_date, since "quando eu termino isso" is a real question even without a
+   * prova marked. */
+  weeksToComplete: number | null;
+  /** ISO date derived from weeksToComplete — the actual "data de término" for this content. */
+  projectedCompletionDate: string | null;
+}
+
+function projectCompletion(d: Discipline, now: Date): { weeksToComplete: number | null; projectedCompletionDate: string | null } {
+  const weeksToComplete = calcETA(d.modules ?? [], d.horas_semana);
+  if (weeksToComplete === null) return { weeksToComplete: null, projectedCompletionDate: null };
+  const date = new Date(now);
+  date.setDate(date.getDate() + weeksToComplete * 7);
+  return { weeksToComplete, projectedCompletionDate: date.toISOString() };
+}
+
+function formatDatePtBr(iso: string): string {
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 // A student's own goal ("do I finish before the exam?") isn't answered by adherence/streak
@@ -72,13 +92,21 @@ const AHEAD_THRESHOLD = 10;
 
 export function calcDisciplinePace(d: Discipline, now: Date = new Date()): DisciplinePace {
   const actualProgress = d.progress;
+  const { weeksToComplete, projectedCompletionDate } = projectCompletion(d, now);
+
   if (!d.exam_date) {
+    const detail =
+      weeksToComplete === null
+        ? `${actualProgress}% concluído — todo o conteúdo já foi coberto.`
+        : `${actualProgress}% concluído. Sem prova marcada — no ritmo atual, previsão de terminar o conteúdo em ${weeksToComplete} ${weeksToComplete === 1 ? "semana" : "semanas"} (${formatDatePtBr(projectedCompletionDate!)}).`;
     return {
       disciplineId: d.id,
       status: "sem_prazo",
-      detail: "Sem data de prova definida — adicione uma para acompanhar o ritmo.",
+      detail,
       expectedProgress: null,
       actualProgress,
+      weeksToComplete,
+      projectedCompletionDate,
     };
   }
 
@@ -93,6 +121,8 @@ export function calcDisciplinePace(d: Discipline, now: Date = new Date()): Disci
       detail: "Data de prova inválida.",
       expectedProgress: null,
       actualProgress,
+      weeksToComplete,
+      projectedCompletionDate,
     };
   }
 
@@ -100,13 +130,18 @@ export function calcDisciplinePace(d: Discipline, now: Date = new Date()): Disci
 
   if (nowMs >= end) {
     return actualProgress >= 100
-      ? { disciplineId: d.id, status: "no_prazo", detail: "Prazo chegou com 100% concluído.", expectedProgress: 100, actualProgress }
+      ? {
+          disciplineId: d.id, status: "no_prazo", detail: "Prazo chegou com 100% concluído.",
+          expectedProgress: 100, actualProgress, weeksToComplete, projectedCompletionDate,
+        }
       : {
           disciplineId: d.id,
           status: "atrasado",
           detail: `Prazo da prova já passou com apenas ${actualProgress}% concluído.`,
           expectedProgress: 100,
           actualProgress,
+          weeksToComplete,
+          projectedCompletionDate,
         };
   }
 
@@ -121,6 +156,8 @@ export function calcDisciplinePace(d: Discipline, now: Date = new Date()): Disci
       detail: `${expectedProgress}% esperado pelo tempo decorrido, mas só ${actualProgress}% concluído — ${daysLeft} ${daysLeft === 1 ? "dia" : "dias"} até a prova.`,
       expectedProgress,
       actualProgress,
+      weeksToComplete,
+      projectedCompletionDate,
     };
   }
   if (diff >= AHEAD_THRESHOLD) {
@@ -130,6 +167,8 @@ export function calcDisciplinePace(d: Discipline, now: Date = new Date()): Disci
       detail: `${actualProgress}% concluído, acima do ritmo esperado (${expectedProgress}%) — ${daysLeft} ${daysLeft === 1 ? "dia" : "dias"} até a prova.`,
       expectedProgress,
       actualProgress,
+      weeksToComplete,
+      projectedCompletionDate,
     };
   }
   return {
@@ -138,6 +177,8 @@ export function calcDisciplinePace(d: Discipline, now: Date = new Date()): Disci
     detail: `${actualProgress}% concluído, dentro do ritmo esperado (${expectedProgress}%) — ${daysLeft} ${daysLeft === 1 ? "dia" : "dias"} até a prova.`,
     expectedProgress,
     actualProgress,
+    weeksToComplete,
+    projectedCompletionDate,
   };
 }
 
