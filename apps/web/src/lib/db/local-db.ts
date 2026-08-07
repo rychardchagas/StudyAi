@@ -58,6 +58,16 @@ function getDb(): DatabaseSync {
   // exist yet at the point schema.sql runs, so an index on it there would fail to create.
   db.exec(`CREATE INDEX IF NOT EXISTS idx_disciplines_group ON disciplines(group_id)`);
 
+  // Migration: databases created before fsrs_lapses/fsrs_state existed on modules — needed to
+  // round-trip a full FSRSCard (see scheduleCard() in lib/utils/fsrs.ts) through sessions/complete.
+  const moduleColumns = toPlainArray<{ name: string }>(db.prepare(`PRAGMA table_info(modules)`).all());
+  if (!moduleColumns.some((c) => c.name === "fsrs_lapses")) {
+    db.exec(`ALTER TABLE modules ADD COLUMN fsrs_lapses INTEGER DEFAULT 0`);
+  }
+  if (!moduleColumns.some((c) => c.name === "fsrs_state")) {
+    db.exec(`ALTER TABLE modules ADD COLUMN fsrs_state TEXT DEFAULT 'new'`);
+  }
+
   global.__studyaiDb = db;
   return db;
 }
@@ -224,6 +234,11 @@ export function listModules(disciplineId?: string): Module[] {
     );
   }
   return toPlainArray<Module>(db.prepare(`SELECT * FROM modules ORDER BY order_index ASC`).all());
+}
+
+export function getModule(id: string): Module | undefined {
+  const row = getDb().prepare(`SELECT * FROM modules WHERE id = ?`).get(id);
+  return row ? toPlain<Module>(row) : undefined;
 }
 
 export function createModule(input: Partial<Module> & { discipline_id: string; name: string }): Module {

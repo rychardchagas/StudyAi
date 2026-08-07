@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS modules (
   fsrs_difficulty REAL DEFAULT 0,
   fsrs_due_date TEXT,
   fsrs_reps INTEGER DEFAULT 0,
+  fsrs_lapses INTEGER DEFAULT 0,
+  fsrs_state TEXT DEFAULT 'new' CHECK (fsrs_state IN ('new', 'learning', 'review', 'relearning')),
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );

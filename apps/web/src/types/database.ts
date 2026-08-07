@@ -56,6 +56,8 @@ export interface Module {
   fsrs_difficulty: number;
   fsrs_due_date: string | null;
   fsrs_reps: number;
+  fsrs_lapses: number;
+  fsrs_state: FlashcardState;
   created_at: string;
   updated_at: string;
 }

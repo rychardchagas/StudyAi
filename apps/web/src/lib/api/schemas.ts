@@ -102,6 +102,8 @@ export const modulePatchSchema = z
     fsrs_difficulty: z.number().min(0).optional(),
     fsrs_due_date: z.string().nullable().optional(),
     fsrs_reps: z.number().int().min(0).optional(),
+    fsrs_lapses: z.number().int().min(0).optional(),
+    fsrs_state: z.enum(["new", "learning", "review", "relearning"]).optional(),
   })
   .strict();
 
@@ -118,7 +120,11 @@ export const sessionCreateSchema = z
 export const sessionCompleteSchema = z
   .object({
     sessionId: z.string().min(1),
-    recallScore: z.number().int().min(1).max(5).optional(),
+    // 1-4, matching FSRS's Again/Hard/Good/Easy rating (lib/utils/fsrs.ts's Rating type) — not a
+    // broader 1-5 "how did it feel" scale. moduleId is what lets sessions/complete look up the
+    // module's current FSRSCard and call scheduleCard() with this rating.
+    moduleId: z.string().min(1).optional(),
+    recallScore: z.number().int().min(1).max(4).optional(),
     notes: z.string().max(5000).optional(),
   })
   .strict();

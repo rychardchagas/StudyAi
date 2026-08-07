@@ -11,7 +11,15 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { Target } from "lucide-react";
 import { sendToOrchestrator } from "@/lib/agents/orchestrator";
 import { cn } from "@/lib/utils/cn";
+import type { Rating } from "@/lib/utils/fsrs";
 import type { StudySession } from "@/types";
+
+const RECALL_RATINGS: Array<{ value: Rating; label: string; emoji: string }> = [
+  { value: 1, label: "Esqueci", emoji: "😵" },
+  { value: 2, label: "Difícil", emoji: "😓" },
+  { value: 3, label: "Bom", emoji: "🙂" },
+  { value: 4, label: "Fácil", emoji: "😄" },
+];
 
 const CHECKLIST_ITEMS = ["Revisar anotações", "Praticar exercícios", "Active recall final"];
 
@@ -98,6 +106,11 @@ export function SessionClient() {
   const [recallIdx, setRecallIdx] = useState(0);
   const [recallAnswer, setRecallAnswer] = useState("");
   const [recallNotes, setRecallNotes] = useState<string[]>([]);
+  // Default to "Bom" (3) rather than blocking completion on a forced choice — but this is a real,
+  // changeable rating now, not the hardcoded 4 ("Fácil") this used to send unconditionally. It's
+  // what feeds scheduleCard() in /api/sessions/complete, so it actually drives the module's next
+  // review date instead of being a number nobody reads.
+  const [recallRating, setRecallRating] = useState<Rating>(3);
 
   const [coachMessages, setCoachMessages] = useState<string[]>([
     "🧠 Sessão iniciada — feche o material e tente lembrar antes de checar.",
@@ -260,7 +273,8 @@ export function SessionClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId: id,
-          recallScore: 4,
+          moduleId: moduleId || undefined,
+          recallScore: recallRating,
           notes: recallNotes.join("\n\n") || recallAnswer.trim() || undefined,
         }),
       });
@@ -454,6 +468,29 @@ export function SessionClient() {
               >
                 ⏭
               </button>
+            </div>
+            <div className="relative mb-2.5">
+              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                Como foi lembrar disso?
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {RECALL_RATINGS.map((r) => (
+                  <button
+                    key={r.value}
+                    type="button"
+                    onClick={() => setRecallRating(r.value)}
+                    className={cn(
+                      "flex flex-col items-center gap-0.5 rounded-lg border py-1.5 text-[10px] transition-colors",
+                      recallRating === r.value
+                        ? "border-primary bg-primary/15 text-primary"
+                        : "border-border bg-card2 text-dim"
+                    )}
+                  >
+                    <span className="text-sm">{r.emoji}</span>
+                    {r.label}
+                  </button>
+                ))}
+              </div>
             </div>
             <Button
               variant="primary"
