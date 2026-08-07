@@ -7,7 +7,7 @@
 | Frontend Web | Next.js 15 + React 18 | Interface principal |
 | Frontend Mobile | React Native (futuro) | App mobile |
 | Backend | Next.js API Routes | API REST + Server Actions |
-| LLM | Claude Sonnet 4.6 | Orchestrator + Agents |
+| LLM | Ollama local (padrão) — ou qualquer provedor compatível com a API da OpenAI | Orchestrator + Agents |
 | Database | SQLite local (better-sqlite3) | Dados persistentes, single-user, sem servidor |
 | Auth | Nenhuma — app local, usuário único | Sem login/gate |
 
@@ -16,7 +16,7 @@
 ```
 User Input
     ↓
-Orchestrator (Claude Sonnet 4.6)
+Orchestrator (LLM via lib/agents/llm-client.ts)
     ├── Curriculum Agent   → Parseia ementas, organiza módulos
     ├── Pedagogy Agent     → FSRS + interleaving + metodologia
     ├── Scheduler Agent    → Distribui sessões nos slots disponíveis
@@ -25,7 +25,9 @@ Orchestrator (Claude Sonnet 4.6)
     └── QA Agent           → Valida calendário antes de entregar
 ```
 
-Todos os agentes vivem em `apps/web/src/lib/agents/`. Curriculum e Orchestrator chamam a API da Anthropic; Pedagogy, Scheduler, Progress, Notification e QA são lógica determinística local (sem custo de API).
+Todos os agentes vivem em `apps/web/src/lib/agents/`. Curriculum e Orchestrator chamam um LLM via
+`lib/agents/llm-client.ts` (compatível com a API da OpenAI — Ollama local por padrão); Pedagogy,
+Scheduler, Progress, Notification e QA são lógica determinística local (sem dependência de IA).
 
 ## Fluxo de geração de calendário
 

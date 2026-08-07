@@ -1,8 +1,9 @@
 # StudyAI
 
 **Calendário de estudos inteligente** — cadastre suas matérias e disponibilidade, e um time de
-agentes de IA (Claude) monta seu cronograma semanal aplicando ciência do aprendizado (repetição
-espaçada, interleaving, active recall). App local, single-user, sem login.
+agentes de IA monta seu cronograma semanal aplicando ciência do aprendizado (repetição
+espaçada, interleaving, active recall). App local, single-user, sem login, e a IA roda localmente
+via Ollama por padrão (grátis e privado — nenhum dado sai da sua máquina).
 
 ![CI](https://github.com/rychardchagas/StudyAi/actions/workflows/ci.yml/badge.svg)
 ![CodeQL](https://github.com/rychardchagas/StudyAi/actions/workflows/codeql.yml/badge.svg)
@@ -33,9 +34,11 @@ aplicando de forma prática:
 - **Active recall** — testar a memória ativamente, não só reler o conteúdo.
 
 Todos os agentes vivem em `apps/web/src/lib/agents/`. Só o **Curriculum Agent** e o
-**Orchestrator** chamam a API da Anthropic (Claude); Pedagogy, Scheduler, Progress, Notification e
-QA são lógica determinística local, sem custo de API a cada uso. Detalhes completos da arquitetura
-e do fluxo de geração de calendário: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+**Orchestrator** chamam um LLM (via `lib/agents/llm-client.ts`, compatível com a API da OpenAI —
+Ollama local por padrão, ou qualquer provedor compatível: Groq, OpenRouter, LM Studio...);
+Pedagogy, Scheduler, Progress, Notification e QA são lógica determinística local, sem depender de
+IA. Detalhes completos da arquitetura e do fluxo de geração de calendário:
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Funcionalidades
 
@@ -92,30 +95,35 @@ final, já dispara a primeira geração de calendário e leva direto pro dashboa
 | Frontend | Next.js 15 (App Router) + React 18 + Tailwind CSS + framer-motion |
 | Estado | Zustand + hooks customizados (`useCalendar`, `useAI`, `useTimer`, `useDisciplines`) |
 | Backend | API Routes do próprio Next.js |
-| IA | Claude (Anthropic SDK + `ai` SDK), validação de entrada com `zod` |
+| IA | Qualquer LLM compatível com a API da OpenAI (Ollama local por padrão) via `openai` SDK, validação de entrada com `zod` |
 | Banco | SQLite local (`better-sqlite3`), zero configuração |
 | Testes/CI | Vitest, GitHub Actions (lint, type-check, build, test, CodeQL) |
 
 ## Começando
 
-Pré-requisitos: **Node.js 20+**, **pnpm 9+** e uma chave de API da Anthropic
-([console.anthropic.com](https://console.anthropic.com)).
+Pré-requisitos: **Node.js 20+**, **pnpm 9+** e um provedor de IA compatível com a API da OpenAI —
+por padrão, [Ollama](https://ollama.com) rodando localmente (grátis, privado, sem chave):
 
 ```bash
+# 1. Instalar o Ollama (ollama.com) e baixar um modelo com suporte a tool-calling
+ollama pull qwen2.5:7b
+
+# 2. Clonar e instalar dependências
 git clone https://github.com/rychardchagas/StudyAi.git
 cd StudyAi
 pnpm install
 
 cp .env.example apps/web/.env.local
-# edite apps/web/.env.local e cole sua ANTHROPIC_API_KEY
+# opcional: edite apps/web/.env.local se quiser trocar de modelo/provedor
+# (Groq, OpenRouter, LM Studio...) — os defaults já apontam pro Ollama local
 
 pnpm dev
 # → http://localhost:3000
 ```
 
 O banco SQLite é criado automaticamente na primeira execução, dentro de `apps/web/data/` — não
-precisa configurar nada além da chave de API. Passo a passo completo:
-[docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
+precisa configurar nada além de ter o Ollama rodando (ou apontar pra outro provedor). Passo a
+passo completo: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 
 ## Guia de uso
 

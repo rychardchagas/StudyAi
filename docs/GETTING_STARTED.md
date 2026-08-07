@@ -4,33 +4,38 @@
 
 - Node.js 20+
 - pnpm 9+
-- Chave API Anthropic
+- [Ollama](https://ollama.com) rodando localmente (padrão, grátis) — ou qualquer provedor
+  compatível com a API da OpenAI
 
 ## Setup
 
 ```bash
-# 1. Clonar e instalar dependências
+# 1. Baixar um modelo com suporte a tool-calling (uma vez só)
+ollama pull qwen2.5:7b
+
+# 2. Clonar e instalar dependências
 git clone <repo>
 cd studyai
 npm install -g pnpm
 pnpm install
 
-# 2. Configurar variáveis de ambiente
+# 3. Configurar variáveis de ambiente (opcional — os defaults já apontam pro Ollama local)
 cp .env.example apps/web/.env.local
-# Editar apps/web/.env.local com sua chave Anthropic
 
-# 3. Rodar em desenvolvimento
+# 4. Rodar em desenvolvimento
 pnpm dev
 # → http://localhost:3000
 ```
 
 O banco de dados SQLite (`apps/web/data/studyai.db`) é criado automaticamente na primeira execução — nenhuma configuração de banco é necessária.
 
-## Variáveis de Ambiente Obrigatórias
+## Variáveis de Ambiente (opcionais — têm default apontando pro Ollama local)
 
-| Variável | Onde obter |
-|----------|-----------|
-| `ANTHROPIC_API_KEY` | console.anthropic.com |
+| Variável | Default | Pra que serve |
+|----------|---------|----------------|
+| `LLM_BASE_URL` | `http://localhost:11434/v1` | Endpoint compatível com a API da OpenAI (Ollama, Groq, OpenRouter, LM Studio...) |
+| `LLM_API_KEY` | `ollama` | Ollama ignora o valor; provedores em nuvem exigem uma chave real |
+| `LLM_MODEL` | `qwen2.5:7b` | Nome do modelo a usar |
 
 ## Estrutura de arquivos
 

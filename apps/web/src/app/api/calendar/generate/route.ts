@@ -1,9 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { validateCalendar } from "@/lib/agents/qa";
-import { describeAnthropicError } from "@/lib/agents/anthropic-error";
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+import { describeLlmError } from "@/lib/agents/llm-error";
+import { llm, LLM_MODEL } from "@/lib/agents/llm-client";
 
 export async function POST(req: NextRequest) {
   try {
@@ -38,13 +36,13 @@ Return ONLY valid JSON in this format:
   ]
 }`;
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+    const response = await llm.chat.completions.create({
+      model: LLM_MODEL,
       max_tokens: 2048,
       messages: [{ role: "user", content: prompt }],
     });
 
-    const text = response.content[0].type === "text" ? response.content[0].text : "{}";
+    const text = response.choices[0]?.message?.content ?? "{}";
     const clean = text.replace(/```json|```/g, "").trim();
     const calendar = JSON.parse(clean);
 
@@ -56,7 +54,7 @@ Return ONLY valid JSON in this format:
     return NextResponse.json({ ...calendar, qa });
   } catch (error) {
     console.error("Calendar generation error:", error);
-    const { status, code, message } = describeAnthropicError(error);
+    const { status, code, message } = describeLlmError(error);
     return NextResponse.json({ error: code, message }, { status });
   }
 }

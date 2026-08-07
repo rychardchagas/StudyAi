@@ -66,7 +66,7 @@ Esse motor **não é validado por nenhum QA automático** — se duas matérias 
 horário fixo, por exemplo, ele resolve silenciosamente ("a primeira cadastrada ganha") sem te
 avisar.
 
-### Motor 2 — IA (Claude), acionado ao clicar em "⚡ Replanejar"
+### Motor 2 — IA (LLM local via Ollama, ou o provedor configurado), acionado ao clicar em "⚡ Replanejar"
 Envia suas disciplinas, módulos e disponibilidade para o modelo, que monta o calendário seguindo
 regras equivalentes às do motor local (proporcionalidade, interleaving, priorizar provas próximas,
 metodologia por status do módulo) — mas com mais flexibilidade de interpretação. Depois de gerado,

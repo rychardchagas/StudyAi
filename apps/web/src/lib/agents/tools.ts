@@ -4,7 +4,7 @@
  * instead of only talking about it. Each tool resolves disciplines/modules by
  * name (fuzzy, case-insensitive) so the model never needs to know internal IDs.
  */
-import Anthropic from "@anthropic-ai/sdk";
+import type OpenAI from "openai";
 import {
   createDiscipline,
   createModule,
@@ -49,126 +49,147 @@ function slotIndex(label: string): number {
   return i;
 }
 
-export const TOOLS: Anthropic.Tool[] = [
+export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
-    name: "add_discipline",
-    description: "Cadastra uma nova disciplina/matéria de estudo.",
-    input_schema: {
-      type: "object",
-      properties: {
-        name: { type: "string", description: "Nome da matéria" },
-        horas_semana: { type: "number", description: "Horas de estudo desejadas por semana" },
-        prioridade: { type: "string", enum: ["Alta", "Média", "Baixa"] },
-        exam_date: { type: "string", description: "Data da prova, formato YYYY-MM-DD (opcional)" },
-        modules: {
-          type: "array",
-          description: "Módulos/tópicos iniciais (opcional)",
-          items: {
-            type: "object",
-            properties: {
-              name: { type: "string" },
-              estimated_hours: { type: "number" },
+    type: "function",
+    function: {
+      name: "add_discipline",
+      description: "Cadastra uma nova disciplina/matéria de estudo.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Nome da matéria" },
+          horas_semana: { type: "number", description: "Horas de estudo desejadas por semana" },
+          prioridade: { type: "string", enum: ["Alta", "Média", "Baixa"] },
+          exam_date: { type: "string", description: "Data da prova, formato YYYY-MM-DD (opcional)" },
+          modules: {
+            type: "array",
+            description: "Módulos/tópicos iniciais (opcional)",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                estimated_hours: { type: "number" },
+              },
+              required: ["name"],
             },
-            required: ["name"],
           },
         },
+        required: ["name", "horas_semana", "prioridade"],
       },
-      required: ["name", "horas_semana", "prioridade"],
     },
   },
   {
-    name: "update_discipline",
-    description: "Atualiza horas por semana, prioridade e/ou data de prova de uma matéria existente.",
-    input_schema: {
-      type: "object",
-      properties: {
-        discipline_name: { type: "string", description: "Nome (ou parte do nome) da matéria" },
-        horas_semana: { type: "number" },
-        prioridade: { type: "string", enum: ["Alta", "Média", "Baixa"] },
-        exam_date: { type: "string", description: "Formato YYYY-MM-DD" },
+    type: "function",
+    function: {
+      name: "update_discipline",
+      description: "Atualiza horas por semana, prioridade e/ou data de prova de uma matéria existente.",
+      parameters: {
+        type: "object",
+        properties: {
+          discipline_name: { type: "string", description: "Nome (ou parte do nome) da matéria" },
+          horas_semana: { type: "number" },
+          prioridade: { type: "string", enum: ["Alta", "Média", "Baixa"] },
+          exam_date: { type: "string", description: "Formato YYYY-MM-DD" },
+        },
+        required: ["discipline_name"],
       },
-      required: ["discipline_name"],
     },
   },
   {
-    name: "remove_discipline",
-    description: "Remove uma matéria e todos os seus módulos.",
-    input_schema: {
-      type: "object",
-      properties: { discipline_name: { type: "string" } },
-      required: ["discipline_name"],
-    },
-  },
-  {
-    name: "add_module",
-    description: "Adiciona um módulo/tópico a uma matéria existente.",
-    input_schema: {
-      type: "object",
-      properties: {
-        discipline_name: { type: "string" },
-        module_name: { type: "string" },
-        estimated_hours: { type: "number" },
+    type: "function",
+    function: {
+      name: "remove_discipline",
+      description: "Remove uma matéria e todos os seus módulos.",
+      parameters: {
+        type: "object",
+        properties: { discipline_name: { type: "string" } },
+        required: ["discipline_name"],
       },
-      required: ["discipline_name", "module_name"],
     },
   },
   {
-    name: "update_module_status",
-    description: "Marca um módulo como pendente, em andamento ou concluído.",
-    input_schema: {
-      type: "object",
-      properties: {
-        discipline_name: { type: "string" },
-        module_name: { type: "string" },
-        status: { type: "string", enum: ["pend", "prog", "done"] },
+    type: "function",
+    function: {
+      name: "add_module",
+      description: "Adiciona um módulo/tópico a uma matéria existente.",
+      parameters: {
+        type: "object",
+        properties: {
+          discipline_name: { type: "string" },
+          module_name: { type: "string" },
+          estimated_hours: { type: "number" },
+        },
+        required: ["discipline_name", "module_name"],
       },
-      required: ["discipline_name", "module_name", "status"],
     },
   },
   {
-    name: "set_fixed_schedule",
-    description:
-      "Define horários fixos recorrentes (toda semana) para uma matéria, como uma aula presencial. " +
-      "Substitui a lista de horários fixos anteriores dessa matéria pela nova lista enviada.",
-    input_schema: {
-      type: "object",
-      properties: {
-        discipline_name: { type: "string" },
-        slots: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              day: { type: "string", enum: DAYS_LABELS as unknown as string[], description: "Seg, Ter, Qua, Qui, Sex, Sáb ou Dom" },
-              time: { type: "string", description: `Um de: ${SLOT_LABELS.join(", ")}` },
+    type: "function",
+    function: {
+      name: "update_module_status",
+      description: "Marca um módulo como pendente, em andamento ou concluído.",
+      parameters: {
+        type: "object",
+        properties: {
+          discipline_name: { type: "string" },
+          module_name: { type: "string" },
+          status: { type: "string", enum: ["pend", "prog", "done"] },
+        },
+        required: ["discipline_name", "module_name", "status"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "set_fixed_schedule",
+      description:
+        "Define horários fixos recorrentes (toda semana) para uma matéria, como uma aula presencial. " +
+        "Substitui a lista de horários fixos anteriores dessa matéria pela nova lista enviada.",
+      parameters: {
+        type: "object",
+        properties: {
+          discipline_name: { type: "string" },
+          slots: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                day: { type: "string", enum: DAYS_LABELS as unknown as string[], description: "Seg, Ter, Qua, Qui, Sex, Sáb ou Dom" },
+                time: { type: "string", description: `Um de: ${SLOT_LABELS.join(", ")}` },
+              },
+              required: ["day", "time"],
             },
-            required: ["day", "time"],
           },
         },
+        required: ["discipline_name", "slots"],
       },
-      required: ["discipline_name", "slots"],
     },
   },
   {
-    name: "set_availability",
-    description: "Marca um ou mais horários da semana como disponíveis ou indisponíveis para estudo.",
-    input_schema: {
-      type: "object",
-      properties: {
-        slots: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              day: { type: "string", enum: DAYS_LABELS as unknown as string[] },
-              time: { type: "string", description: `Um de: ${SLOT_LABELS.join(", ")}` },
-              available: { type: "boolean" },
+    type: "function",
+    function: {
+      name: "set_availability",
+      description: "Marca um ou mais horários da semana como disponíveis ou indisponíveis para estudo.",
+      parameters: {
+        type: "object",
+        properties: {
+          slots: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                day: { type: "string", enum: DAYS_LABELS as unknown as string[] },
+                time: { type: "string", description: `Um de: ${SLOT_LABELS.join(", ")}` },
+                available: { type: "boolean" },
+              },
+              required: ["day", "time", "available"],
             },
-            required: ["day", "time", "available"],
           },
         },
+        required: ["slots"],
       },
-      required: ["slots"],
     },
   },
 ];

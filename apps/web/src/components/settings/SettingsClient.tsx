@@ -30,9 +30,9 @@ const NOTIFICATION_ITEMS: { key: string; label: string; description: string }[] 
 ];
 
 const AI_MODEL_OPTIONS = [
-  "Claude Sonnet (recomendado)",
-  "Claude Opus (mais poderoso)",
-  "Claude Haiku (mais rápido)",
+  "qwen2.5:7b (recomendado, Ollama local)",
+  "llama3.1:8b (Ollama local)",
+  "Outro (configurar via LLM_MODEL em .env.local)",
 ];
 
 const REPLAN_AGGRESSIVENESS_OPTIONS = ["Conservador", "Balanceado", "Agressivo"];
