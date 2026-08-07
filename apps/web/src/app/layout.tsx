@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Source_Serif_4, IBM_Plex_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
+import { UnloadOnClose } from "@/components/shared/UnloadOnClose";
 import "./globals.css";
 
 // Sans for UI copy, serif for editorial headings, mono for stats/numbers — each exposed as a
@@ -31,6 +32,7 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body className={`${inter.variable} ${sourceSerif.variable} ${plexMono.variable} font-sans`}>
         {children}
+        <UnloadOnClose />
         <Toaster
           position="bottom-center"
           toastOptions={{
