@@ -13,6 +13,7 @@ import { BookOpen, FolderPlus, Folder, X } from "lucide-react";
 import { useDisciplines } from "@/lib/hooks/useDisciplines";
 import { useDisciplineGroups } from "@/lib/hooks/useDisciplineGroups";
 import { calcETA } from "@/lib/utils/fsrs";
+import { nearestEvaluationDate } from "@/lib/utils/evaluations";
 import { DAYS_LABELS, SLOT_LABELS } from "@/lib/utils/constants";
 import type { ParsedModule } from "@/lib/agents/curriculum";
 import { selectMethodology } from "@/lib/agents/pedagogy";
@@ -40,7 +41,7 @@ function pickStudyModule(modules: Module[]): Module | undefined {
 
 function buildSessionHref(d: Discipline, modules: Module[]): string {
   const mod = pickStudyModule(modules);
-  const methodology = selectMethodology(mod?.status ?? "pend", daysUntil(d.exam_date), 0);
+  const methodology = selectMethodology(mod?.status ?? "pend", daysUntil(nearestEvaluationDate(d)), 0);
   const params = new URLSearchParams({
     disciplineId: d.id,
     moduleId: mod?.id ?? "",
@@ -118,6 +119,8 @@ export function DisciplinesClient({
     updateModule,
     addModule,
     removeModule,
+    addEvaluation,
+    removeEvaluation,
   } = useDisciplines(initialDisciplines);
   const { groups, addGroup, renameGroup, removeGroup } = useDisciplineGroups(initialGroups);
 
@@ -130,6 +133,7 @@ export function DisciplinesClient({
   const [editForm, setEditForm] = useState<EditDisciplineForm | null>(null);
   const [newModuleForm, setNewModuleForm] = useState<NewModuleForm>(emptyModuleForm);
   const [newFixedSlot, setNewFixedSlot] = useState<FixedSlot>({ dayOfWeek: 0, slotIndex: 13 });
+  const [newEvaluationForm, setNewEvaluationForm] = useState({ name: "", date: "", weight: "" });
 
   const [addingGroup, setAddingGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -144,6 +148,20 @@ export function DisciplinesClient({
     });
     setNewModuleForm(emptyModuleForm);
     setNewFixedSlot({ dayOfWeek: 0, slotIndex: 13 });
+    setNewEvaluationForm({ name: "", date: "", weight: "" });
+  }
+
+  async function handleAddEvaluation(disciplineId: string) {
+    if (!newEvaluationForm.name.trim() || !newEvaluationForm.date) {
+      toast.error("Preencha nome e data da avaliação.");
+      return;
+    }
+    await addEvaluation(disciplineId, {
+      name: newEvaluationForm.name.trim(),
+      date: newEvaluationForm.date,
+      weight: newEvaluationForm.weight ? Number(newEvaluationForm.weight) : null,
+    });
+    setNewEvaluationForm({ name: "", date: "", weight: "" });
   }
 
   async function handleAddFixedSlot(d: Discipline) {
@@ -250,13 +268,14 @@ export function DisciplinesClient({
 
   function DisciplineCard({ d }: { d: Discipline }) {
     const modules = d.modules ?? [];
-    const daysLeft = daysUntil(d.exam_date);
+    const nextEvalDate = nearestEvaluationDate(d);
+    const daysLeft = daysUntil(nextEvalDate);
     const eta = calcETA(modules, d.horas_semana);
     const doneCount = modules.filter((m) => m.status === "done").length;
 
     return (
       <div
-        className={`bg-card rounded-xl overflow-hidden border ${urgencyBorderClass(d.exam_date)}`}
+        className={`bg-card rounded-xl overflow-hidden border ${urgencyBorderClass(nextEvalDate)}`}
         style={editingId === d.id ? { gridColumn: "span 2" } : undefined}
       >
         <div className="h-[3px]" style={{ background: d.color }} />
@@ -331,7 +350,9 @@ export function DisciplinesClient({
                   </select>
                 </div>
                 <div className="flex flex-col gap-0.5">
-                  <label className="text-[9px] uppercase tracking-wide text-muted">Data da prova</label>
+                  <label className="text-[9px] uppercase tracking-wide text-muted" title="Usada só se a matéria não tiver nenhuma avaliação cadastrada abaixo">
+                    Data da prova (legado)
+                  </label>
                   <input
                     type="date"
                     value={editForm.exam_date}
@@ -358,6 +379,65 @@ export function DisciplinesClient({
               <Button variant="primary" size="sm" onClick={() => handleSaveEdit(d.id)}>
                 Salvar
               </Button>
+
+              <div className="border-t border-border pt-2 flex flex-col gap-1.5">
+                <label className="text-[9px] uppercase tracking-wide text-muted">
+                  Provas e avaliações
+                </label>
+                <div className="text-[10px] text-dim leading-relaxed">
+                  Cadastre cada prova/trabalho com sua data — o calendário prioriza a mais próxima
+                  automaticamente e a IA reorganiza a semana conforme elas se aproximam.
+                </div>
+                {(d.evaluations ?? []).length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    {(d.evaluations ?? []).map((ev) => (
+                      <div
+                        key={ev.id}
+                        className="flex items-center gap-1.5 bg-card border border-border rounded-md px-2 py-1"
+                      >
+                        <span className="flex-1 text-[11px] text-txt truncate">{ev.name}</span>
+                        <span className="font-mono text-[10px] text-muted shrink-0">
+                          {new Date(ev.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                        </span>
+                        {ev.weight !== null && (
+                          <span className="font-mono text-[9px] text-muted shrink-0">{ev.weight}%</span>
+                        )}
+                        <button
+                          onClick={() => removeEvaluation(d.id, ev.id)}
+                          className="w-3.5 h-3.5 rounded-full bg-card2 text-muted hover:text-danger text-[8px] flex items-center justify-center cursor-pointer shrink-0"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <input
+                    value={newEvaluationForm.name}
+                    onChange={(e) => setNewEvaluationForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="Ex: Prova 1, Trabalho final..."
+                    className="flex-1 min-w-[110px] bg-card border border-border rounded-md px-2 py-1 text-[11px] text-txt outline-none focus:border-primary"
+                  />
+                  <input
+                    type="date"
+                    value={newEvaluationForm.date}
+                    onChange={(e) => setNewEvaluationForm((f) => ({ ...f, date: e.target.value }))}
+                    className="bg-card border border-border rounded-md px-1.5 py-1 text-[11px] text-txt outline-none focus:border-primary"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={newEvaluationForm.weight}
+                    onChange={(e) => setNewEvaluationForm((f) => ({ ...f, weight: e.target.value }))}
+                    placeholder="%"
+                    title="Peso (opcional)"
+                    className="w-14 bg-card border border-border rounded-md px-1.5 py-1 text-[11px] text-txt outline-none focus:border-primary"
+                  />
+                  <Button size="sm" onClick={() => handleAddEvaluation(d.id)}>+ Adicionar</Button>
+                </div>
+              </div>
 
               <div className="border-t border-border pt-2 flex flex-col gap-1.5">
                 <label className="text-[9px] uppercase tracking-wide text-muted">

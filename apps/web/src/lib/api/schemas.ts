@@ -11,6 +11,23 @@ const fixedSlotSchema = z.object({
 
 const topicsSchema = z.array(z.string().max(200)).max(50);
 
+export const evaluationCreateSchema = z
+  .object({
+    discipline_id: z.string().min(1),
+    name: z.string().min(1).max(200),
+    date: z.string().min(1),
+    weight: z.number().int().min(0).max(100).nullable().optional(),
+  })
+  .strict();
+
+export const evaluationPatchSchema = z
+  .object({
+    name: z.string().min(1).max(200).optional(),
+    date: z.string().min(1).optional(),
+    weight: z.number().int().min(0).max(100).nullable().optional(),
+  })
+  .strict();
+
 export const disciplineCreateSchema = z
   .object({
     name: z.string().min(1).max(200),

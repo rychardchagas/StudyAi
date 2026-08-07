@@ -43,6 +43,16 @@ export interface Discipline {
   updated_at: string;
   // relations
   modules?: Module[];
+  evaluations?: Evaluation[];
+}
+
+export interface Evaluation {
+  id: string;
+  discipline_id: string;
+  name: string;
+  date: string;
+  weight: number | null;
+  created_at: string;
 }
 
 export interface Module {

@@ -70,6 +70,18 @@ CREATE TABLE IF NOT EXISTS study_sessions (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
+-- Multiple exams/assignments per discipline (prova 1, trabalho, prova final...) — supersedes
+-- disciplines.exam_date, which stays for backward compatibility as a fallback when a discipline
+-- has no rows here yet (see lib/utils/evaluations.ts::nearestEvaluationDate).
+CREATE TABLE IF NOT EXISTS evaluations (
+  id TEXT PRIMARY KEY,
+  discipline_id TEXT NOT NULL REFERENCES disciplines(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  date TEXT NOT NULL,
+  weight INTEGER, -- optional relative weight/percentage, nullable
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS flashcards (
   id TEXT PRIMARY KEY,
   module_id TEXT NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
@@ -88,3 +100,4 @@ CREATE INDEX IF NOT EXISTS idx_sessions_date ON study_sessions(scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_sessions_discipline ON study_sessions(discipline_id);
 CREATE INDEX IF NOT EXISTS idx_modules_discipline ON modules(discipline_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_flashcards_due ON flashcards(due_date);
+CREATE INDEX IF NOT EXISTS idx_evaluations_discipline ON evaluations(discipline_id, date);

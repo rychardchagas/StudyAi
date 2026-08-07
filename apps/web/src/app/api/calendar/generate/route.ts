@@ -27,7 +27,11 @@ ${
 Apply these rules, in order of precedence:
 1. Distribute sessions proportionally to weekly hours per discipline.
 2. Apply interleaving — never schedule the same discipline in consecutive slots of the same day.
-3. Prioritize disciplines with exams < 14 days away — Active Recall regardless of module status.
+3. Each discipline may have an "evaluations" array (name/date/weight — exams, assignments, etc.)
+   and/or a legacy single "exam_date". Use whichever evaluation date is soonest (from either
+   source) as that discipline's real deadline. Prioritize disciplines whose nearest deadline is
+   < 14 days away — Active Recall regardless of module status, and weigh disciplines with a
+   higher "weight" evaluation coming up more heavily than a low-weight one at the same distance.
 4. For "done" modules, judge from the real FSRS fields instead of just the status label:
    - If fsrs_due_date is today or earlier, it's genuinely due — prioritize it for a review slot
      over "done" modules that aren't due yet.

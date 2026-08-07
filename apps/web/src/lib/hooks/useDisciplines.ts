@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import type { Discipline, Module, ModuleStatus } from "@/types";
+import type { Discipline, Evaluation, Module, ModuleStatus } from "@/types";
 
 export type NewDisciplineInput = Omit<Partial<Discipline>, "modules"> & {
   modules?: Array<{ name: string; estimated_hours?: number; topics?: string[] }>;
@@ -159,6 +159,44 @@ export function useDisciplines(initial: Discipline[]) {
     }
   }, [router]);
 
+  const addEvaluation = useCallback(
+    async (disciplineId: string, input: { name: string; date: string; weight?: number | null }) => {
+      try {
+        const res = await fetch("/api/evaluations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ discipline_id: disciplineId, ...input }),
+        });
+        if (!res.ok) throw new Error("request failed");
+        const created: Evaluation = await res.json();
+        setDisciplines((prev) =>
+          prev.map((d) => (d.id === disciplineId ? { ...d, evaluations: [...(d.evaluations ?? []), created] } : d))
+        );
+        router.refresh();
+      } catch {
+        toast.error("Erro ao adicionar avaliação");
+      }
+    },
+    [router]
+  );
+
+  const removeEvaluation = useCallback(async (disciplineId: string, evaluationId: string) => {
+    setDisciplines((prev) =>
+      prev.map((d) =>
+        d.id === disciplineId
+          ? { ...d, evaluations: (d.evaluations ?? []).filter((e) => e.id !== evaluationId) }
+          : d
+      )
+    );
+    try {
+      const res = await fetch(`/api/evaluations/${evaluationId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("request failed");
+      router.refresh();
+    } catch {
+      toast.error("Erro ao remover avaliação");
+    }
+  }, [router]);
+
   return {
     disciplines,
     addDiscipline,
@@ -168,5 +206,7 @@ export function useDisciplines(initial: Discipline[]) {
     updateModule,
     addModule,
     removeModule,
+    addEvaluation,
+    removeEvaluation,
   };
 }

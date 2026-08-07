@@ -1,7 +1,7 @@
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import fs from "fs";
 import path from "path";
-import type { Discipline, DisciplineGroup, Flashcard, Module, Profile, StudySession } from "@/types";
+import type { Discipline, DisciplineGroup, Evaluation, Flashcard, Module, Profile, StudySession } from "@/types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "studyai.db");
@@ -177,9 +177,11 @@ export function listDisciplines(): Discipline[] {
     db.prepare(`SELECT * FROM disciplines ORDER BY created_at ASC`).all()
   ).map(parseDiscipline);
   const modulesStmt = db.prepare(`SELECT * FROM modules WHERE discipline_id = ? ORDER BY order_index ASC`);
+  const evaluationsStmt = db.prepare(`SELECT * FROM evaluations WHERE discipline_id = ? ORDER BY date ASC`);
   return disciplines.map((d) => ({
     ...d,
     modules: toPlainArray<Record<string, unknown>>(modulesStmt.all(d.id)).map(parseModule),
+    evaluations: toPlainArray<Evaluation>(evaluationsStmt.all(d.id)),
   }));
 }
 
@@ -283,6 +285,7 @@ export function resetAllData(): { disciplines: number; modules: number; sessions
   };
   db.exec("DELETE FROM flashcards");
   db.exec("DELETE FROM study_sessions");
+  db.exec("DELETE FROM evaluations");
   db.exec("DELETE FROM modules");
   db.exec("DELETE FROM disciplines");
   db.exec("DELETE FROM discipline_groups");
@@ -348,6 +351,34 @@ export function updateModule(id: string, rawUpdates: Partial<Module>): Module {
     db.prepare(`UPDATE modules SET ${assignments}, updated_at = @updated_at WHERE id = @id`).run(bind(params));
   }
   return parseModule(toPlain<Record<string, unknown>>(db.prepare(`SELECT * FROM modules WHERE id = ?`).get(id)));
+}
+
+// --- Evaluations (prova 1, trabalho, prova final...) ---
+
+export function createEvaluation(input: { discipline_id: string; name: string; date: string; weight?: number | null }): Evaluation {
+  const db = getDb();
+  const id = newId();
+  db.prepare(
+    `INSERT INTO evaluations (id, discipline_id, name, date, weight) VALUES (@id, @discipline_id, @name, @date, @weight)`
+  ).run(bind({ id, discipline_id: input.discipline_id, name: input.name, date: input.date, weight: input.weight ?? null }));
+  return toPlain<Evaluation>(db.prepare(`SELECT * FROM evaluations WHERE id = ?`).get(id));
+}
+
+const EVALUATION_UPDATABLE_FIELDS = ["name", "date", "weight"] as const;
+
+export function updateEvaluation(id: string, rawUpdates: Partial<Evaluation>): Evaluation {
+  const db = getDb();
+  const updates = allowlistFields(rawUpdates, EVALUATION_UPDATABLE_FIELDS);
+  const fields = Object.keys(updates);
+  if (fields.length) {
+    const assignments = fields.map((f) => `${f} = @${f}`).join(", ");
+    db.prepare(`UPDATE evaluations SET ${assignments} WHERE id = @id`).run(bind({ ...updates, id }));
+  }
+  return toPlain<Evaluation>(db.prepare(`SELECT * FROM evaluations WHERE id = ?`).get(id));
+}
+
+export function deleteEvaluation(id: string): void {
+  getDb().prepare(`DELETE FROM evaluations WHERE id = ?`).run(id);
 }
 
 // --- Study sessions ---

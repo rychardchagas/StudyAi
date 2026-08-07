@@ -4,6 +4,7 @@
  */
 import type { Discipline, Module, StudySession } from "@/types";
 import { calcETA } from "@/lib/utils/fsrs";
+import { nearestEvaluationDate } from "@/lib/utils/evaluations";
 
 export function calcWeeklyAdherence(sessions: StudySession[], now: Date = new Date()): number {
   const weekStart = new Date(now);
@@ -93,8 +94,9 @@ const AHEAD_THRESHOLD = 10;
 export function calcDisciplinePace(d: Discipline, now: Date = new Date()): DisciplinePace {
   const actualProgress = d.progress;
   const { weeksToComplete, projectedCompletionDate } = projectCompletion(d, now);
+  const examDate = nearestEvaluationDate(d, now);
 
-  if (!d.exam_date) {
+  if (!examDate) {
     const detail =
       weeksToComplete === null
         ? `${actualProgress}% concluído — todo o conteúdo já foi coberto.`
@@ -111,7 +113,7 @@ export function calcDisciplinePace(d: Discipline, now: Date = new Date()): Disci
   }
 
   const start = new Date(d.created_at).getTime();
-  const end = new Date(d.exam_date).getTime();
+  const end = new Date(examDate).getTime();
   const nowMs = now.getTime();
 
   if (!(end > start)) {

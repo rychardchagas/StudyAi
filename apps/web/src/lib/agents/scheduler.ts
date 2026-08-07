@@ -5,6 +5,7 @@
  */
 import type { Discipline, CalendarEvent } from "@/types";
 import { selectMethodology } from "@/lib/agents/pedagogy";
+import { nearestEvaluationDate } from "@/lib/utils/evaluations";
 
 const DEFAULT_AVAIL: Record<number, number[]> = {
   0: [1, 2, 3, 12, 13, 14],
@@ -185,9 +186,8 @@ export function generateCalendar(
     const mod = pickModuleForSession(disc, sc, asOf, allCovered);
     const done = (disc.modules ?? []).filter((m) => m.status === "done");
 
-    const daysToExam = disc.exam_date
-      ? Math.max(0, Math.ceil((new Date(disc.exam_date).getTime() - asOf) / 86400000))
-      : null;
+    const nextEvalDate = nearestEvaluationDate(disc, new Date(asOf));
+    const daysToExam = nextEvalDate ? Math.max(0, Math.ceil((new Date(nextEvalDate).getTime() - asOf) / 86400000)) : null;
 
     // Once content is fully covered, treat the module as "done" for methodology purposes too
     // (real recall/review), regardless of its actual DB status — this is a projection of where
