@@ -5,23 +5,23 @@
 :root {
   /* Warm near-black neutrals — oklch(L C H), consumed via oklch(var(--x)) in tailwind.config.ts
      so the palette is defined exactly once. Low chroma, hue ~55 (warm/paper tone), academic-dark.
-     Pushed noticeably darker than the first pass — bg reads close to true black, and each layer
-     (surface/card/card2) still steps up by ~4-5L so panels stay legible against one another. */
-  --bg: 9% 0.015 55;
-  --surface: 12% 0.018 55;
-  --card: 15% 0.02 55;
-  --card2: 19% 0.022 55;
-  --border: 92% 0.01 55 / 0.09;
-  --border2: 92% 0.01 55 / 0.17;
+     Reverted from a near-black pass (bg L=9%) back to this level — user compared both against a
+     reference screenshot and preferred this arrangement, not the extra-dark one. Don't push bg
+     darker than this without that same explicit sign-off. */
+  --bg: 17% 0.02 55;
+  --surface: 20% 0.02 55;
+  --card: 23% 0.02 55;
+  --card2: 27% 0.02 55;
+  --border: 92% 0.01 55 / 0.08;
+  --border2: 92% 0.01 55 / 0.15;
   --txt: 96% 0.01 75;
-  --dim: 80% 0.02 60;
-  --muted: 66% 0.02 60;
+  --dim: 78% 0.02 60;
+  --muted: 62% 0.02 60;
 
   /* Same lightness + chroma, different hue: gold (gamification/primary actions) vs.
-     teal (AI/agent elements) read as a deliberate pair, not two unrelated brand colors.
-     Chroma nudged up slightly so both still pop against the darker background above. */
-  --primary: 78% 0.16 75;
-  --secondary: 78% 0.15 195;
+     teal (AI/agent elements) read as a deliberate pair, not two unrelated brand colors. */
+  --primary: 78% 0.14 75;
+  --secondary: 78% 0.13 195;
 }
 
 * { box-sizing: border-box; }
