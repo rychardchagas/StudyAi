@@ -37,3 +37,16 @@ quando alguém pedir.
 Dado sensível (roadmap estratégico, regras de negócio, notas internas) que não deveria ir pro
 GitHub público segue o mesmo princípio de "persistir localmente, não deixar de escrever" — ver a
 skill global `private-data-gatekeeper` (`~/.claude/skills/`) pra onde e como.
+
+## Revisão de segurança é obrigatória, não sob pedido
+
+Antes de considerar concluída qualquer mudança que toque input do usuário, upload de arquivo,
+construção de prompt/mensagens pra LLM, tool-calling do Orchestrator, queries SQL, ou qualquer
+rota em `apps/web/src/app/api`, use a skill `appsec-senior-engineer` (`.claude/skills/`). Ela
+aplica o framework da skill global `owasp-security` à superfície de ataque real deste projeto e
+já documenta um incidente real (prompt injection no Orchestrator, corrigido em 2026-08-07). Se
+algo não estiver de acordo com os padrões de segurança, corrija diretamente quando for pequeno e
+claro, ou registre a sugestão de melhoria em `docs/KANBAN.md` (com severidade e caminho de
+exploração concreto) quando precisar de decisão do usuário — nunca reporte um achado sem antes
+confirmar que o input é controlável, o sink é alcançável, e qual o raio de impacto (disciplina de
+verificação descrita na própria skill).
