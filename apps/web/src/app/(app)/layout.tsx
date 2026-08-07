@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/shared/Sidebar";
 import { Topbar } from "@/components/shared/Topbar";
+import { ActiveSessionBar } from "@/components/shared/ActiveSessionBar";
 import { listDisciplines, listSessions, getProfile } from "@/lib/db/local-db";
 import { calcStreakDays, last7Days } from "@/lib/agents/progress";
 
@@ -18,6 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <Topbar disciplines={disciplines} />
+        <ActiveSessionBar />
         {children}
       </div>
     </div>

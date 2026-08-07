@@ -61,9 +61,16 @@ export function CalGrid({ events, onClickEvent, weekDates }: CalGridProps) {
                       <button
                         type="button"
                         onClick={() => onClickEvent(ev)}
-                        className="absolute inset-0.5 rounded flex flex-col justify-between overflow-hidden p-1.5 text-left text-white cursor-pointer"
+                        className={`absolute inset-0.5 rounded flex flex-col justify-between overflow-hidden p-1.5 text-left text-white cursor-pointer ${
+                          ev.done ? "opacity-60" : ""
+                        }`}
                         style={{ background: ev.disciplineColor }}
                       >
+                        {ev.done && (
+                          <div className="absolute top-1 right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white/90 text-[9px] font-bold text-success">
+                            ✓
+                          </div>
+                        )}
                         <div className="min-w-0">
                           <div className="text-[10px] font-bold leading-tight truncate">{ev.disciplineName}</div>
                           <div className="text-[9px] opacity-85 truncate">{ev.moduleName}</div>

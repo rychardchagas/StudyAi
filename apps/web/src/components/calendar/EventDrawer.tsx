@@ -5,9 +5,11 @@ interface EventDrawerProps {
   event: CalendarEvent | null;
   onClose: () => void;
   onStartSession: (event: CalendarEvent) => void;
+  onMarkDone: (event: CalendarEvent) => void;
+  markingDone?: boolean;
 }
 
-export function EventDrawer({ event, onClose, onStartSession }: EventDrawerProps) {
+export function EventDrawer({ event, onClose, onStartSession, onMarkDone, markingDone }: EventDrawerProps) {
   if (!event) return null;
 
   const details: Array<[string, string]> = [
@@ -34,11 +36,18 @@ export function EventDrawer({ event, onClose, onStartSession }: EventDrawerProps
           >
             ✕
           </button>
-          <div
-            className="font-mono text-[10px] font-semibold tracking-wider uppercase rounded px-1.5 py-0.5 inline-block mb-1.5"
-            style={{ background: `${event.disciplineColor}22`, color: event.disciplineColor }}
-          >
-            {event.disciplineName}
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <div
+              className="font-mono text-[10px] font-semibold tracking-wider uppercase rounded px-1.5 py-0.5 inline-block"
+              style={{ background: `${event.disciplineColor}22`, color: event.disciplineColor }}
+            >
+              {event.disciplineName}
+            </div>
+            {event.done && (
+              <div className="font-mono text-[10px] font-semibold tracking-wider uppercase rounded px-1.5 py-0.5 inline-block bg-success/15 text-success">
+                ✓ Concluída esta semana
+              </div>
+            )}
           </div>
           <div className="text-sm font-bold text-txt mb-1 leading-snug">{event.moduleName}</div>
           <div className="text-[11px] text-muted">
@@ -56,7 +65,7 @@ export function EventDrawer({ event, onClose, onStartSession }: EventDrawerProps
           ))}
         </div>
 
-        <div className="p-3 pt-0 shrink-0">
+        <div className="p-3 pt-0 shrink-0 flex flex-col gap-1.5">
           <button
             type="button"
             onClick={() => onStartSession(event)}
@@ -64,6 +73,16 @@ export function EventDrawer({ event, onClose, onStartSession }: EventDrawerProps
           >
             ▶ Iniciar sessão
           </button>
+          {!event.done && (
+            <button
+              type="button"
+              onClick={() => onMarkDone(event)}
+              disabled={markingDone}
+              className="w-full text-[13px] font-semibold border border-success/30 bg-success/10 text-success rounded-lg py-2 cursor-pointer hover:bg-success/15 transition-colors disabled:opacity-60"
+            >
+              {markingDone ? "Marcando…" : "✓ Marcar como concluída"}
+            </button>
+          )}
         </div>
       </div>
     </div>

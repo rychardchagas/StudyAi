@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { Target } from "lucide-react";
 import { sendToOrchestrator } from "@/lib/agents/orchestrator";
 import { cn } from "@/lib/utils/cn";
+import { readActiveSession, writeActiveSession, clearActiveSession } from "@/lib/utils/activeSession";
 import type { Rating } from "@/lib/utils/fsrs";
 import type { StudySession } from "@/types";
 
@@ -31,45 +32,6 @@ const CANNED_COACH_REPLIES = [
 ];
 
 const QUICK_REPLIES = ["⏱ Quanto falta?", "🧠 Quiz rápido", "😓 Estou travado"];
-
-// The active session's DB row id only lived in React state, so any reload — a Fast Refresh
-// during dev, an accidental browser refresh, reopening the tab — lost the link to the row
-// already created, and the mount effect below would create a *new* one instead of resuming,
-// leaving an orphaned "started but never completed" row behind. Persisting the identifying
-// triple here means a reload resumes the same DB row instead of duplicating it.
-const ACTIVE_SESSION_KEY = "studyai:activeSession";
-
-interface StoredActiveSession {
-  sessionId: string;
-  disciplineId: string;
-  moduleId: string;
-}
-
-function readActiveSession(): StoredActiveSession | null {
-  try {
-    const raw = localStorage.getItem(ACTIVE_SESSION_KEY);
-    return raw ? (JSON.parse(raw) as StoredActiveSession) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeActiveSession(data: StoredActiveSession) {
-  try {
-    localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(data));
-  } catch {
-    // localStorage unavailable (private mode, storage full) — session still works,
-    // it just won't survive a reload.
-  }
-}
-
-function clearActiveSession() {
-  try {
-    localStorage.removeItem(ACTIVE_SESSION_KEY);
-  } catch {
-    // nothing to do
-  }
-}
 
 function buildRecallQuestions(moduleName: string, disciplineName: string) {
   const subject = moduleName || disciplineName || "este tema";
@@ -160,7 +122,15 @@ export function SessionClient() {
       const id = await createSessionRow();
       if (id) {
         setSessionId(id);
-        writeActiveSession({ sessionId: id, disciplineId, moduleId });
+        writeActiveSession({
+          sessionId: id,
+          disciplineId,
+          moduleId,
+          disciplineName,
+          moduleName,
+          methodology,
+          duration,
+        });
       } else {
         toast.error("Não foi possível registrar a sessão no servidor — vou tentar de novo ao concluir.");
       }

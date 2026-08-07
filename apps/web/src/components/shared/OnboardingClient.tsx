@@ -4,11 +4,12 @@
 // best-effort triggers /api/calendar/generate before landing on /dashboard.
 // There is no onboarding flow in the prototype (StudyAI.jsx) to port — this
 // screen was designed from scratch to match the app's visual language.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/Button";
 import { SchedGrid } from "@/components/shared/SchedGrid";
+import { DAYS_LABELS, SLOT_LABELS } from "@/lib/utils/constants";
 import type { Discipline, Priority } from "@/types";
 
 interface ModuleDraft {
@@ -57,9 +58,12 @@ export function OnboardingClient() {
 
   // Step 2/3 — disciplines + modules
   const [disciplines, setDisciplines] = useState<DisciplineDraft[]>([newDiscipline()]);
+  const [importingEmentas, setImportingEmentas] = useState(false);
+  const ementaInputRef = useRef<HTMLInputElement>(null);
 
   // Step 4 — availability
   const [slots, setSlots] = useState<Record<string, boolean>>(defaultSlots());
+  const [restDay, setRestDay] = useState<number | null>(null);
 
   const validDisciplines = disciplines.filter((d) => d.name.trim().length > 0);
 
@@ -96,6 +100,88 @@ export function OnboardingClient() {
         i === disciplineIndex ? { ...d, modules: d.modules.filter((_, mi) => mi !== moduleIndex) } : d
       )
     );
+  };
+
+  const handleImportEmentas = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setImportingEmentas(true);
+    const importedDrafts: DisciplineDraft[] = [];
+    const failures: string[] = [];
+
+    for (const file of Array.from(files)) {
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        // No disciplineName sent — bulk import has no name yet, the model infers it from the
+        // document itself (see /api/curriculum/parse).
+        const res = await fetch("/api/curriculum/parse", { method: "POST", body: form });
+        if (!res.ok) throw new Error("parse failed");
+        const data: {
+          disciplineName?: string;
+          estimatedWeeklyHours?: number;
+          modules?: Array<{ name: string; estimatedHours?: number }>;
+        } = await res.json();
+        importedDrafts.push({
+          name: data.disciplineName || file.name.replace(/\.[^./]+$/, ""),
+          horas_semana: data.estimatedWeeklyHours || 4,
+          prioridade: "Média",
+          exam_date: "",
+          modules: (data.modules ?? [])
+            .filter((m) => m.name?.trim())
+            .map((m) => ({ name: m.name.trim(), estimated_hours: m.estimatedHours || 2 })),
+        });
+      } catch (error) {
+        console.error("Failed to import ementa", file.name, error);
+        failures.push(file.name);
+      }
+    }
+
+    if (importedDrafts.length > 0) {
+      setDisciplines((prev) => {
+        // Drop the still-blank starter row before appending imports — otherwise onboarding
+        // always carries a dangling untitled discipline nobody filled in.
+        const base = prev.filter((d) => d.name.trim().length > 0);
+        return [...base, ...importedDrafts];
+      });
+    }
+
+    setImportingEmentas(false);
+    if (importedDrafts.length > 0) {
+      toast.success(
+        `${importedDrafts.length} ementa${importedDrafts.length > 1 ? "s" : ""} importada${
+          importedDrafts.length > 1 ? "s" : ""
+        } — confira e ajuste os dados abaixo.`
+      );
+    }
+    if (failures.length > 0) {
+      toast.error(`Não foi possível processar: ${failures.join(", ")}`);
+    }
+  };
+
+  const handleSetRestDay = (day: number | null) => {
+    setRestDay(day);
+    if (day !== null) {
+      setSlots((prev) => {
+        const next = { ...prev };
+        for (let si = 0; si < SLOT_LABELS.length; si++) delete next[`${day}-${si}`];
+        return next;
+      });
+    }
+  };
+
+  const suggestRestDay = () => {
+    const counts = Array.from(
+      { length: 7 },
+      (_, day) => Object.keys(slots).filter((k) => k.startsWith(`${day}-`) && slots[k]).length
+    );
+    const min = Math.min(...counts);
+    // Ties resolve toward Sunday (index 6) — the conventional default rest day.
+    let day = 6;
+    for (let i = 6; i >= 0; i--) {
+      if (counts[i] === min) day = i;
+    }
+    handleSetRestDay(day);
+    toast.success(`Sugestão: ${DAYS_LABELS[day]} como dia de descanso.`);
   };
 
   const handleFinish = async () => {
@@ -144,7 +230,7 @@ export function OnboardingClient() {
         body: JSON.stringify({
           name: name.trim() || null,
           bio: bio.trim() || null,
-          preferences: { availability: slots },
+          preferences: { availability: slots, restDay },
         }),
       });
     } catch (error) {
@@ -159,10 +245,15 @@ export function OnboardingClient() {
           .filter((k) => k.startsWith(`${day}-`) && slots[k])
           .map((k) => Number(k.split("-")[1]));
       }
+      const restDayNote =
+        restDay !== null
+          ? `O estudante reserva ${DAYS_LABELS[restDay]} como dia de descanso completo — não agende nada nesse dia; redistribua a carga entre os demais dias considerando essa folga.`
+          : "";
+      const studentContext = [bio.trim(), restDayNote].filter(Boolean).join(" ") || undefined;
       await fetch("/api/calendar/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ disciplines: created, availability, studentContext: bio.trim() || undefined }),
+        body: JSON.stringify({ disciplines: created, availability, studentContext }),
       });
     } catch (error) {
       console.error("Calendar generation failed", error);
@@ -291,9 +382,34 @@ export function OnboardingClient() {
                     </div>
                   ))}
                 </div>
-                <Button variant="outline" size="sm" onClick={addDiscipline}>
-                  + Adicionar matéria
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={addDiscipline}>
+                    + Adicionar matéria
+                  </Button>
+                  <input
+                    ref={ementaInputRef}
+                    type="file"
+                    multiple
+                    accept=".pdf,.txt,application/pdf,text/plain"
+                    className="hidden"
+                    onChange={(e) => {
+                      handleImportEmentas(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => ementaInputRef.current?.click()}
+                    disabled={importingEmentas}
+                  >
+                    {importingEmentas ? "Importando…" : "📄 Importar ementas (PDF/TXT)"}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted">
+                  Envie uma ou mais ementas — a IA identifica nome, carga horária e módulos de cada
+                  matéria automaticamente e preenche a lista acima.
+                </p>
               </div>
             )}
 
@@ -364,7 +480,52 @@ export function OnboardingClient() {
                   Marque os horários em que você costuma conseguir estudar. Isso é usado para montar seu
                   calendário automático.
                 </p>
-                <SchedGrid slots={slots} setSlots={setSlots} />
+
+                <div className="mb-4 bg-card border border-border rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs font-semibold text-txt">Dia de descanso (opcional)</div>
+                    <button
+                      type="button"
+                      onClick={suggestRestDay}
+                      className="text-[11px] text-primary cursor-pointer hover:underline"
+                    >
+                      ✦ Sugerir automaticamente
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-muted mb-2">
+                    Reserve 1 dia livre por semana — nenhuma sessão é agendada nele, e a IA redistribui
+                    sua carga nos outros dias considerando essa folga.
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleSetRestDay(null)}
+                      className={`text-[11px] font-medium rounded-full px-2.5 py-1 cursor-pointer border transition-colors ${
+                        restDay === null
+                          ? "bg-primary/15 border-primary/40 text-primary"
+                          : "bg-card2 border-border text-dim hover:text-txt"
+                      }`}
+                    >
+                      Nenhum
+                    </button>
+                    {DAYS_LABELS.map((label, day) => (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => handleSetRestDay(day)}
+                        className={`text-[11px] font-medium rounded-full px-2.5 py-1 cursor-pointer border transition-colors ${
+                          restDay === day
+                            ? "bg-primary/15 border-primary/40 text-primary"
+                            : "bg-card2 border-border text-dim hover:text-txt"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <SchedGrid slots={slots} setSlots={setSlots} disabledDay={restDay} />
               </div>
             )}
           </div>

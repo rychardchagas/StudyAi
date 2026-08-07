@@ -83,6 +83,9 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
   const [availability, setAvailability] = useState<Record<string, boolean>>(() =>
     asRecord(basePreferences.availability)
   );
+  const [restDay, setRestDay] = useState<number | null>(() =>
+    typeof basePreferences.restDay === "number" ? basePreferences.restDay : null
+  );
 
   // IA & Agentes
   const [aiModel, setAiModel] = useState(() => asString(basePreferences.aiModel, AI_MODEL_OPTIONS[0]));
@@ -109,6 +112,7 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
             ...basePreferences,
             notifications,
             availability,
+            restDay,
             aiModel,
             replanAggressiveness,
             agentsEnabled,
@@ -170,6 +174,17 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
     const next: Record<string, boolean> = {};
     DAYS_LABELS.forEach((_, di) => SLOT_LABELS.forEach((__, si) => (next[`${di}-${si}`] = true)));
     setAvailability(next);
+  }
+
+  function handleSetRestDay(day: number | null) {
+    setRestDay(day);
+    if (day !== null) {
+      setAvailability((prev) => {
+        const next = { ...prev };
+        for (let si = 0; si < SLOT_LABELS.length; si++) delete next[`${day}-${si}`];
+        return next;
+      });
+    }
   }
 
   return (
@@ -296,7 +311,37 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
                 Clique nos slots para marcar disponibilidade. Salvar aqui atualiza sua preferência —
                 o calendário só recalcula quando você volta ao Dashboard e clica em “Replanejar”.
               </div>
-              <SchedGrid slots={availability} setSlots={setAvailability} />
+              <div className="mb-3 bg-card border border-border rounded-lg p-3">
+                <div className="text-xs font-semibold text-txt mb-2">Dia de descanso (opcional)</div>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleSetRestDay(null)}
+                    className={`text-[11px] font-medium rounded-full px-2.5 py-1 cursor-pointer border transition-colors ${
+                      restDay === null
+                        ? "bg-primary/15 border-primary/40 text-primary"
+                        : "bg-card2 border-border text-dim hover:text-txt"
+                    }`}
+                  >
+                    Nenhum
+                  </button>
+                  {DAYS_LABELS.map((label, day) => (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => handleSetRestDay(day)}
+                      className={`text-[11px] font-medium rounded-full px-2.5 py-1 cursor-pointer border transition-colors ${
+                        restDay === day
+                          ? "bg-primary/15 border-primary/40 text-primary"
+                          : "bg-card2 border-border text-dim hover:text-txt"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <SchedGrid slots={availability} setSlots={setAvailability} disabledDay={restDay} />
               <div className="flex gap-1.5 mt-2.5">
                 <Button size="sm" onClick={selectAllSlots}>
                   Selecionar todos

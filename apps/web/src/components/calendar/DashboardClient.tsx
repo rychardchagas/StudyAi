@@ -67,6 +67,7 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [chatInput, setChatInput] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
+  const [markingDone, setMarkingDone] = useState(false);
 
   // The calendar itself is a recurring weekly template (same events every week — see
   // useCalendar/generateCalendar), so navigating weeks only changes which real dates are
@@ -125,6 +126,35 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
     [events]
   );
 
+  // The calendar is a recurring weekly template (same events every week), so "done" only makes
+  // sense tied to a real date — cross-reference against this week's actual completed sessions,
+  // and only when the real current week is on screen (weekOffset === 0); past/future weeks have
+  // no matching real occurrence to check against.
+  const doneEventKeys = useMemo(() => {
+    const keys = new Set<string>();
+    if (weekOffset !== 0) return keys;
+    const weekStart = startOfWeekMonday(new Date());
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    for (const s of initialSessions) {
+      if (!s.completed) continue;
+      const at = new Date(s.completed_at ?? s.scheduled_at);
+      if (at < weekStart || at >= weekEnd) continue;
+      const dow = (at.getDay() + 6) % 7; // Monday=0, matching CalendarEvent.dayOfWeek
+      keys.add(`${s.discipline_id}|${s.module_id ?? ""}|${dow}`);
+    }
+    return keys;
+  }, [initialSessions, weekOffset]);
+
+  const eventsWithDone = useMemo(
+    () =>
+      events.map((e) => ({
+        ...e,
+        done: doneEventKeys.has(`${e.disciplineId}|${e.moduleId ?? ""}|${e.dayOfWeek}`),
+      })),
+    [events, doneEventKeys]
+  );
+
   function handleStartSession(event: CalendarEvent) {
     router.push(
       `/session?disciplineId=${event.disciplineId}&moduleId=${event.moduleId ?? ""}&methodology=${encodeURIComponent(
@@ -133,6 +163,43 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
         event.disciplineName
       )}&moduleName=${encodeURIComponent(event.moduleName)}`
     );
+  }
+
+  async function handleMarkDone(event: CalendarEvent) {
+    if (markingDone) return;
+    setMarkingDone(true);
+    try {
+      const createRes = await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          discipline_id: event.disciplineId,
+          module_id: event.moduleId || undefined,
+          scheduled_at: new Date().toISOString(),
+          duration_minutes: event.durationMinutes,
+          methodology: event.methodology,
+        }),
+      });
+      if (!createRes.ok) throw new Error("Failed to create session");
+      const created = await createRes.json();
+      const completeRes = await fetch("/api/sessions/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: created.id,
+          moduleId: event.moduleId || undefined,
+          recallScore: 3,
+        }),
+      });
+      if (!completeRes.ok) throw new Error("Failed to complete session");
+      toast.success("Sessão marcada como concluída!");
+      setSelectedEvent(null);
+      router.refresh();
+    } catch {
+      toast.error("Não foi possível marcar a sessão como concluída.");
+    } finally {
+      setMarkingDone(false);
+    }
   }
 
   async function handleRegenerate() {
@@ -248,7 +315,7 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
               ))}
             </div>
           </div>
-          <CalGrid events={events} onClickEvent={setSelectedEvent} weekDates={weekDates} />
+          <CalGrid events={eventsWithDone} onClickEvent={setSelectedEvent} weekDates={weekDates} />
         </div>
 
         {/* AI Panel */}
@@ -386,7 +453,13 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
         </div>
       </div>
 
-      <EventDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} onStartSession={handleStartSession} />
+      <EventDrawer
+        event={selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+        onStartSession={handleStartSession}
+        onMarkDone={handleMarkDone}
+        markingDone={markingDone}
+      />
       <GenOverlay visible={generating} />
     </div>
   );
