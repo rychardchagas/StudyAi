@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { completeSession, getModule, updateModule } from "@/lib/db/local-db";
+import { completeSession, getModule, updateModule, recalculateAllProgress } from "@/lib/db/local-db";
 import { handleApiError } from "@/lib/api/respond";
 import { sessionCompleteSchema } from "@/lib/api/schemas";
 import { scheduleCard, type FSRSCard, type Rating } from "@/lib/utils/fsrs";
@@ -32,7 +32,17 @@ export async function POST(req: NextRequest) {
           fsrs_reps: rescheduled.reps,
           fsrs_lapses: rescheduled.lapses,
           fsrs_state: rescheduled.state,
+          // Completing a session is direct evidence the student started this module — a "pend"
+          // module sitting untouched in /disciplines after real study sessions on it was a real
+          // reported gap. "done" stays a deliberate manual call (the status-cycle control in
+          // DisciplinesClient) rather than inferred here, since one session finishing doesn't
+          // mean the whole module is mastered.
+          ...(mod.status === "pend" ? { status: "prog" as const } : {}),
         });
+        // Keeps disciplines.progress in sync with the module status change above — this used to
+        // require a manual "Corrigir progresso" click in Configurações; completing a session is
+        // exactly the kind of event that should already reflect there and on /disciplines.
+        recalculateAllProgress();
       }
     }
 

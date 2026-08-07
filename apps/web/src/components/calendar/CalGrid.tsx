@@ -61,6 +61,9 @@ export function CalGrid({ events, onClickEvent, weekDates }: CalGridProps) {
                       <button
                         type="button"
                         onClick={() => onClickEvent(ev)}
+                        title={`${ev.disciplineName} — ${ev.moduleName}\n${ev.methodology} · ${ev.durationMinutes} min${
+                          ev.done ? "\n✓ Concluída esta semana" : ""
+                        }`}
                         className={`absolute inset-0.5 rounded flex flex-col justify-between overflow-hidden p-1.5 text-left text-white cursor-pointer ${
                           ev.done ? "opacity-60" : ""
                         }`}

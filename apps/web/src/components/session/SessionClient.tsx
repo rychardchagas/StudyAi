@@ -276,7 +276,7 @@ export function SessionClient() {
             Sessão ativa
           </div>
           <div className="font-serif text-lg font-semibold text-txt">
-            {moduleName || disciplineName || "Sessão de estudo"}
+            {disciplineName || moduleName || "Sessão de estudo"}
           </div>
         </div>
         <div className="flex gap-2">
@@ -372,14 +372,15 @@ export function SessionClient() {
           {/* Timer card */}
           <div className="relative mb-3 overflow-hidden rounded-xl border border-border bg-card p-4 text-center">
             <div className="pointer-events-none absolute -top-10 left-1/2 h-[130px] w-[260px] -translate-x-1/2 bg-[radial-gradient(ellipse,rgba(59,130,246,.08)_0%,transparent_70%)]" />
-            {disciplineName && (
-              <div className="relative mb-2 inline-flex items-center gap-1 rounded bg-primary/15 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-primary">
-                {disciplineName}
-              </div>
-            )}
-            <div className="relative mb-1 text-[15px] font-bold text-txt">
-              {moduleName || "Sessão de estudo"}
+            {/* Discipline is the headline (full name, wraps instead of clipping — this used to be
+                a one-line uppercase badge that silently cut long names, e.g. "Segurança da
+                Informação" → "Segurança da"), module underneath as the subtitle. */}
+            <div className="relative mb-1 text-[15px] font-bold text-txt leading-snug">
+              {disciplineName || "Sessão de estudo"}
             </div>
+            {moduleName && (
+              <div className="relative mb-1 text-[12px] font-medium text-dim leading-snug">{moduleName}</div>
+            )}
             <div className="relative mb-4 text-[11px] text-muted">
               {[methodology, duration ? `${durationMinutes} min` : null].filter(Boolean).join(" · ") ||
                 "Sessão de estudo livre"}

@@ -56,7 +56,7 @@ export function generateCalendar(
       const mod = pickModuleForSession(disc, sc);
       events.push({
         disciplineId: disc.id,
-        disciplineName: disc.name.split(" ").slice(0, 2).join(" "),
+        disciplineName: disc.name,
         disciplineColor: disc.color,
         moduleId: mod?.id,
         moduleName: mod?.name ?? disc.name,
@@ -145,7 +145,7 @@ export function generateCalendar(
 
     events.push({
       disciplineId: disc.id,
-      disciplineName: disc.name.split(" ").slice(0, 2).join(" "),
+      disciplineName: disc.name,
       disciplineColor: disc.color,
       moduleId: mod?.id,
       moduleName: isReview ? `🔁 Revisão — ${mod?.name ?? "módulo anterior"}` : (mod?.name ?? disc.name),

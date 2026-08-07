@@ -58,9 +58,9 @@ export function EventDrawer({ event, onClose, onStartSession, onMarkDone, markin
         <div className="p-4">
           <div className="font-mono text-[10px] font-semibold tracking-wider uppercase text-muted mb-2">Detalhes</div>
           {details.map(([k, v]) => (
-            <div key={k} className="flex justify-between py-1.5 border-b border-white/[0.04] last:border-b-0">
-              <span className="text-[11px] text-muted">{k}</span>
-              <span className="font-mono text-[11px] text-txt text-right max-w-[180px] truncate">{v}</span>
+            <div key={k} className="flex justify-between gap-3 py-1.5 border-b border-white/[0.04] last:border-b-0">
+              <span className="text-[11px] text-muted shrink-0">{k}</span>
+              <span className="font-mono text-[11px] text-txt text-right break-words">{v}</span>
             </div>
           ))}
         </div>

@@ -15,9 +15,29 @@ You have access to the student's disciplines, modules, schedule and progress, an
 actually add/edit/remove disciplines and modules, fix a recurring weekly class time, and change availability
 — don't just describe what the student should do, do it when they ask. Confirm briefly what you changed.
 Always respond in Brazilian Portuguese. Be direct, encouraging, and data-driven.
-When suggesting schedule changes, explain the pedagogical reasoning.`;
+When suggesting schedule changes, explain the pedagogical reasoning.
+Your reply is shown directly in a chat bubble to the student. NEVER include raw JSON, code blocks,
+tool-call syntax, or any of the underlying data structures in your reply — always respond in plain
+natural Portuguese prose, as if explaining to a person, not printing a payload.`;
 
 const MAX_TOOL_ITERATIONS = 5;
+
+// Defense in depth alongside the prompt instruction above: a small local model can still bleed
+// raw JSON/code into its reply (e.g. echoing a tool call's own arguments back in prose) — seen
+// live as literal JSON payloads showing up in the chat. Strips fenced code blocks and any
+// paragraph that's just a JSON object/array, falling back to the (already clean, hand-written)
+// actionsPerformed summaries when nothing readable survives.
+function sanitizeReply(content: string, actionsPerformed: string[]): string {
+  const withoutFences = content.replace(/```[\s\S]*?```/g, "").trim();
+  const paragraphs = withoutFences
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter((p) => p && !(/^[[{][\s\S]*[\]}]$/.test(p)));
+  const cleaned = paragraphs.join("\n\n").trim();
+  if (cleaned) return cleaned;
+  if (actionsPerformed.length) return actionsPerformed.join(" ");
+  return "Pronto.";
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -57,7 +77,7 @@ export async function POST(req: NextRequest) {
 
       if (choice.finish_reason !== "tool_calls" || !message.tool_calls?.length) {
         return NextResponse.json({
-          content: message.content ?? "",
+          content: sanitizeReply(message.content ?? "", actionsPerformed),
           actionsPerformed,
           usage: response.usage,
         });

@@ -9,7 +9,6 @@ interface SidebarProps {
   disciplines: Discipline[];
   streakDays: number;
   last7Days: boolean[]; // oldest -> today, 7 entries
-  profileName: string | null;
 }
 
 const STUDY_ITEMS: Array<{ Icon: LucideIcon; label: string; href: string }> = [
@@ -26,10 +25,9 @@ const CONFIG_ITEMS: Array<{ Icon: LucideIcon; label: string; href: string }> = [
   { Icon: HelpCircle, label: "Como usar", href: "/help" },
 ];
 
-export function Sidebar({ disciplines, streakDays, last7Days, profileName }: SidebarProps) {
+export function Sidebar({ disciplines, streakDays, last7Days }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
-  const initial = (profileName?.trim()?.[0] ?? "E").toUpperCase();
 
   function NavItem({ Icon, label, href }: { Icon: LucideIcon; label: string; href: string }) {
     const active = pathname === href;
@@ -153,23 +151,6 @@ export function Sidebar({ disciplines, streakDays, last7Days, profileName }: Sid
           </div>
         )}
       </div>
-
-      <Link
-        href="/settings"
-        className={`shrink-0 border-t border-border flex items-center gap-2 hover:bg-card transition-colors ${
-          collapsed ? "justify-center py-2.5" : "px-3 py-2.5"
-        }`}
-      >
-        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-[10px] font-bold text-bg shrink-0">
-          {initial}
-        </div>
-        {!collapsed && (
-          <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-medium text-txt truncate">{profileName ?? "Estudante"}</div>
-            <div className="text-[9px] text-muted">Ver perfil</div>
-          </div>
-        )}
-      </Link>
     </aside>
   );
 }

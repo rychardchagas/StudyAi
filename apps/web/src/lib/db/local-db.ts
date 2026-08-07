@@ -147,6 +147,30 @@ export function listDisciplines(): Discipline[] {
   return disciplines.map((d) => ({ ...d, modules: toPlainArray<Module>(modulesStmt.all(d.id)) }));
 }
 
+// Every discipline used to default to the same hardcoded "#3B82F6" unless a caller explicitly
+// passed a color — none did, so every discipline in the calendar/sidebar rendered identically
+// blue. Cycles through a fixed palette (same L/C as the `primary`/`secondary` theme tokens, just
+// spread across hues) keyed off how many disciplines already exist, so each new one gets a
+// visually distinct color automatically.
+// Hex (not oklch()) on purpose — disciplinePatchSchema/disciplineCreateSchema validate `color`
+// against /^#[0-9A-Fa-f]{6}$/, matching the existing hex defaults already in local-schema.sql.
+const DISCIPLINE_COLOR_PALETTE = [
+  "#D4A537", // gold
+  "#4FB8A8", // teal
+  "#E8735A", // coral
+  "#6FBF73", // green
+  "#A78BD9", // violet
+  "#E37FA6", // rose
+  "#6B9FE8", // blue
+  "#E0A64D", // amber
+];
+
+function nextDisciplineColor(): string {
+  const db = getDb();
+  const { c } = db.prepare(`SELECT COUNT(*) c FROM disciplines`).get() as { c: number };
+  return DISCIPLINE_COLOR_PALETTE[c % DISCIPLINE_COLOR_PALETTE.length];
+}
+
 export function createDiscipline(input: Partial<Discipline>): Discipline {
   const db = getDb();
   const id = newId();
@@ -158,7 +182,7 @@ export function createDiscipline(input: Partial<Discipline>): Discipline {
       id,
       name: input.name ?? "",
       type: input.type ?? "Graduação",
-      color: input.color ?? "#3B82F6",
+      color: input.color ?? nextDisciplineColor(),
       horas_semana: input.horas_semana ?? 4,
       prioridade: input.prioridade ?? "Média",
       exam_date: input.exam_date ?? null,
