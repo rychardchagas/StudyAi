@@ -20,6 +20,23 @@ function bind(params: Record<string, unknown>): Record<string, SQLInputValue> {
   return bound;
 }
 
+// Every update* function below builds its SET clause from Object.keys(updates), so a column
+// name comes straight from whatever object the caller passes in. The API routes pre-filter that
+// object with a zod .strict() schema, and lib/agents/tools.ts's executeTool() only ever assigns
+// a fixed set of known keys onto `updates` before calling these — both are safe *today*. But
+// neither guarantee is enforced here, at the one place that actually matters: a future caller
+// (a new tool, a script, a route that forgets its schema) that passes an unfiltered object
+// straight through would silently reintroduce mass-assignment/column-injection. Enforcing the
+// allowlist inside the data-access function itself, not just at every call site, is the fix that
+// can't be forgotten by the next caller.
+function allowlistFields<T extends Record<string, unknown>>(updates: T, allowed: readonly string[]): Partial<T> {
+  const filtered: Partial<T> = {};
+  for (const key of Object.keys(updates)) {
+    if ((allowed as readonly string[]).includes(key)) (filtered as Record<string, unknown>)[key] = updates[key];
+  }
+  return filtered;
+}
+
 // node:sqlite rows are created with a null prototype (Object.create(null)), which
 // React Server Components refuse to serialize to Client Components ("Only plain
 // objects... Classes or null prototypes are not supported"). Spreading into a
@@ -82,9 +99,12 @@ export function getProfile(): Profile {
   return { ...row, preferences: JSON.parse((row.preferences as string) ?? "{}") } as Profile;
 }
 
-export function updateProfile(updates: Partial<Profile>): Profile {
+const PROFILE_UPDATABLE_FIELDS = ["name", "bio", "context", "avatar_url", "preferences"] as const;
+
+export function updateProfile(rawUpdates: Partial<Profile>): Profile {
   const db = getDb();
-  const fields = Object.keys(updates).filter((k) => k !== "id");
+  const updates = allowlistFields(rawUpdates, PROFILE_UPDATABLE_FIELDS);
+  const fields = Object.keys(updates);
   if (fields.length) {
     const assignments = fields.map((f) => `${f} = @${f}`).join(", ");
     const params: Record<string, unknown> = { ...updates, updated_at: now() };
@@ -114,9 +134,12 @@ export function createGroup(input: { name: string; color?: string }): Discipline
   return toPlain<DisciplineGroup>(db.prepare(`SELECT * FROM discipline_groups WHERE id = ?`).get(id));
 }
 
-export function updateGroup(id: string, updates: Partial<DisciplineGroup>): DisciplineGroup {
+const GROUP_UPDATABLE_FIELDS = ["name", "color", "order_index"] as const;
+
+export function updateGroup(id: string, rawUpdates: Partial<DisciplineGroup>): DisciplineGroup {
   const db = getDb();
-  const fields = Object.keys(updates).filter((k) => k !== "id");
+  const updates = allowlistFields(rawUpdates, GROUP_UPDATABLE_FIELDS);
+  const fields = Object.keys(updates);
   if (fields.length) {
     const assignments = fields.map((f) => `${f} = @${f}`).join(", ");
     db.prepare(`UPDATE discipline_groups SET ${assignments} WHERE id = @id`).run(bind({ ...updates, id }));
@@ -194,9 +217,14 @@ export function createDiscipline(input: Partial<Discipline>): Discipline {
   return parseDiscipline(toPlain(db.prepare(`SELECT * FROM disciplines WHERE id = ?`).get(id)));
 }
 
-export function updateDiscipline(id: string, updates: Partial<Discipline>): Discipline {
+const DISCIPLINE_UPDATABLE_FIELDS = [
+  "name", "type", "color", "horas_semana", "prioridade", "exam_date", "progress", "fixed_schedule", "group_id",
+] as const;
+
+export function updateDiscipline(id: string, rawUpdates: Partial<Discipline>): Discipline {
   const db = getDb();
-  const fields = Object.keys(updates).filter((k) => !["id", "modules"].includes(k));
+  const updates = allowlistFields(rawUpdates, DISCIPLINE_UPDATABLE_FIELDS);
+  const fields = Object.keys(updates);
   if (fields.length) {
     const assignments = fields.map((f) => `${f} = @${f}`).join(", ");
     const params: Record<string, unknown> = { ...updates, id, updated_at: now() };
@@ -288,9 +316,15 @@ export function deleteModule(id: string): void {
   getDb().prepare(`DELETE FROM modules WHERE id = ?`).run(id);
 }
 
-export function updateModule(id: string, updates: Partial<Module>): Module {
+const MODULE_UPDATABLE_FIELDS = [
+  "name", "status", "estimated_hours", "order_index",
+  "fsrs_stability", "fsrs_difficulty", "fsrs_due_date", "fsrs_reps", "fsrs_lapses", "fsrs_state",
+] as const;
+
+export function updateModule(id: string, rawUpdates: Partial<Module>): Module {
   const db = getDb();
-  const fields = Object.keys(updates).filter((k) => k !== "id");
+  const updates = allowlistFields(rawUpdates, MODULE_UPDATABLE_FIELDS);
+  const fields = Object.keys(updates);
   if (fields.length) {
     const assignments = fields.map((f) => `${f} = @${f}`).join(", ");
     db.prepare(`UPDATE modules SET ${assignments}, updated_at = @updated_at WHERE id = @id`).run(
@@ -355,12 +389,17 @@ export function listFlashcards(moduleId?: string): Flashcard[] {
   return toPlainArray<Flashcard>(db.prepare(`SELECT * FROM flashcards ORDER BY due_date ASC`).all());
 }
 
+// module_id is deliberately excluded — reassigning a flashcard to a different module via an
+// update slip isn't a supported operation, only front/back/FSRS state should ever change here.
+const FLASHCARD_UPDATABLE_FIELDS = ["front", "back", "stability", "difficulty", "due_date", "reps", "lapses", "state"] as const;
+
 export function upsertFlashcard(input: Partial<Flashcard> & { module_id: string; front: string; back: string }): Flashcard {
   const db = getDb();
   if (input.id) {
-    const fields = Object.keys(input).filter((k) => k !== "id");
+    const updates = allowlistFields(input as Record<string, unknown>, FLASHCARD_UPDATABLE_FIELDS);
+    const fields = Object.keys(updates);
     const assignments = fields.map((f) => `${f} = @${f}`).join(", ");
-    db.prepare(`UPDATE flashcards SET ${assignments} WHERE id = @id`).run(bind(input as Record<string, unknown>));
+    db.prepare(`UPDATE flashcards SET ${assignments} WHERE id = @id`).run(bind({ ...updates, id: input.id }));
     return toPlain<Flashcard>(db.prepare(`SELECT * FROM flashcards WHERE id = ?`).get(input.id));
   }
   const id = newId();

@@ -5,6 +5,12 @@ import { describeLlmError } from "@/lib/agents/llm-error";
 import { llm, LLM_MODEL } from "@/lib/agents/llm-client";
 import { extractJson } from "@/lib/agents/extract-json";
 
+// The 40_000-char slice below only caps the *extracted* text — a huge upload still pays the full
+// cost of buffering + pdf-parse before that ever kicks in. Low severity for a local single-user
+// app (worst case is the user hanging their own request), but cheap to bound properly and matters
+// more if this route is ever reachable beyond localhost.
+const MAX_UPLOAD_BYTES = 15 * 1024 * 1024; // 15MB — generous for a syllabus, not for arbitrary files
+
 async function extractText(file: File): Promise<string> {
   const buffer = Buffer.from(await file.arrayBuffer());
   if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
@@ -45,6 +51,12 @@ export async function POST(req: NextRequest) {
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 });
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { error: `Arquivo muito grande (máx. ${MAX_UPLOAD_BYTES / 1024 / 1024}MB)` },
+        { status: 413 }
+      );
     }
 
     const text = (await extractText(file)).slice(0, 40_000);
