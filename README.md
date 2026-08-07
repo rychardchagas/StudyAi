@@ -117,13 +117,26 @@ cp .env.example apps/web/.env.local
 # opcional: edite apps/web/.env.local se quiser trocar de modelo/provedor
 # (Groq, OpenRouter, LM Studio...) — os defaults já apontam pro Ollama local
 
+# 3. Ligar o Ollama, rodar o app, e desligar o Ollama quando terminar
+pnpm ai:start
 pnpm dev
 # → http://localhost:3000
+# ... Ctrl+C pra parar o app, depois:
+pnpm ai:stop
 ```
 
 O banco SQLite é criado automaticamente na primeira execução, dentro de `apps/web/data/` — não
 precisa configurar nada além de ter o Ollama rodando (ou apontar pra outro provedor). Passo a
 passo completo: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
+
+### Gestão de memória do Ollama
+
+O instalador do Ollama no Windows liga um app de bandeja no login automaticamente — isso foi
+**desativado** neste projeto (o servidor só sobe quando você roda `pnpm ai:start`, e derruba com
+`pnpm ai:stop`). Além disso, `OLLAMA_KEEP_ALIVE=5m` e `OLLAMA_MAX_LOADED_MODELS=1` estão
+configurados como variáveis de ambiente do usuário: o modelo sai da RAM/VRAM sozinho depois de 5
+minutos sem uso, e nunca mais de um modelo fica carregado ao mesmo tempo — mesmo que você esqueça
+de rodar `pnpm ai:stop`, o consumo pesado de memória se limita sozinho.
 
 ## Guia de uso
 

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calendar, Clock, TrendingUp, BookOpen, FlaskConical, Settings, Flame, HelpCircle, type LucideIcon } from "lucide-react";
+import { Calendar, Clock, TrendingUp, BookOpen, FlaskConical, Settings, Flame, HelpCircle, Bot, type LucideIcon } from "lucide-react";
 import type { Discipline } from "@/types";
 
 interface SidebarProps {
@@ -22,6 +22,7 @@ const CONFIG_ITEMS: Array<{ Icon: LucideIcon; label: string; href: string }> = [
   { Icon: BookOpen, label: "Matérias", href: "/disciplines" },
   { Icon: FlaskConical, label: "Metodologias", href: "/methods" },
   { Icon: Settings, label: "Configurações", href: "/settings" },
+  { Icon: Bot, label: "Agentes de IA", href: "/agents" },
   { Icon: HelpCircle, label: "Como usar", href: "/help" },
 ];
 

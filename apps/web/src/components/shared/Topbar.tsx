@@ -15,6 +15,7 @@ const LABELS: Record<string, string> = {
   "/disciplines": "Matérias",
   "/methods": "Metodologias",
   "/settings": "Configurações",
+  "/agents": "Agentes de IA",
   "/help": "Como usar",
 };
 
