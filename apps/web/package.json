@@ -14,7 +14,7 @@
     "next": "^15.0.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "@anthropic-ai/sdk": "^0.27.0",
+    "openai": "^4.68.0",
     "ai": "^3.3.0",
     "pdf-parse": "^1.1.1",
     "lucide-react": "^0.383.0",

@@ -1,10 +1,8 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import pdfParse from "pdf-parse";
 import type { ParsedModule } from "@/lib/agents/curriculum";
-import { describeAnthropicError } from "@/lib/agents/anthropic-error";
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+import { describeLlmError } from "@/lib/agents/llm-error";
+import { llm, LLM_MODEL } from "@/lib/agents/llm-client";
 
 async function extractText(file: File): Promise<string> {
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -30,8 +28,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Não foi possível extrair texto do arquivo" }, { status: 422 });
     }
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+    const response = await llm.chat.completions.create({
+      model: LLM_MODEL,
       max_tokens: 2048,
       messages: [
         {
@@ -47,14 +45,14 @@ Return ONLY JSON array:
       ],
     });
 
-    const raw = response.content[0].type === "text" ? response.content[0].text : "[]";
+    const raw = response.choices[0]?.message?.content ?? "[]";
     const clean = raw.replace(/```json|```/g, "").trim();
     const modules: ParsedModule[] = JSON.parse(clean);
 
     return NextResponse.json({ modules });
   } catch (error) {
     console.error("Curriculum parse error:", error);
-    const { status, code, message } = describeAnthropicError(error);
+    const { status, code, message } = describeLlmError(error);
     return NextResponse.json({ error: code, message }, { status });
   }
 }

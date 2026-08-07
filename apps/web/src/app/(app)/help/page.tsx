@@ -15,7 +15,7 @@ const engines = [
     ],
   },
   {
-    title: "Motor via IA (Claude)",
+    title: "Motor via IA (LLM local)",
     badge: "⚡ Replanejar",
     badgeClass: "bg-primary/15 text-primary",
     points: [

@@ -1,9 +1,8 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
+import type OpenAI from "openai";
 import { executeTool, TOOLS } from "@/lib/agents/tools";
-import { describeAnthropicError } from "@/lib/agents/anthropic-error";
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+import { describeLlmError } from "@/lib/agents/llm-error";
+import { llm, LLM_MODEL } from "@/lib/agents/llm-client";
 
 const ORCHESTRATOR_PROMPT = `You are StudyAI's Orchestrator — an intelligent study planning assistant.
 You help students manage their study calendars using evidence-based learning techniques:
@@ -23,46 +22,47 @@ const MAX_TOOL_ITERATIONS = 5;
 export async function POST(req: NextRequest) {
   try {
     const { messages, context } = await req.json();
-    const conversation: Anthropic.MessageParam[] = [...messages];
+    const conversation: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      { role: "system", content: ORCHESTRATOR_PROMPT + (context ? `\n\nStudent context:\n${JSON.stringify(context, null, 2)}` : "") },
+      ...messages,
+    ];
     const actionsPerformed: string[] = [];
 
     for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
+      const response = await llm.chat.completions.create({
+        model: LLM_MODEL,
         max_tokens: 1536,
-        system: ORCHESTRATOR_PROMPT + (context ? `\n\nStudent context:\n${JSON.stringify(context, null, 2)}` : ""),
         tools: TOOLS,
         messages: conversation,
       });
 
-      if (response.stop_reason !== "tool_use") {
-        const textBlock = response.content.find((b) => b.type === "text");
+      const choice = response.choices[0];
+      const message = choice.message;
+
+      if (choice.finish_reason !== "tool_calls" || !message.tool_calls?.length) {
         return NextResponse.json({
-          content: textBlock?.type === "text" ? textBlock.text : "",
+          content: message.content ?? "",
           actionsPerformed,
           usage: response.usage,
         });
       }
 
-      conversation.push({ role: "assistant", content: response.content });
+      conversation.push(message);
 
-      const toolResults: Anthropic.ToolResultBlockParam[] = [];
-      for (const block of response.content) {
-        if (block.type !== "tool_use") continue;
+      for (const toolCall of message.tool_calls) {
         try {
-          const { result, changed } = executeTool(block.name, block.input as Record<string, unknown>);
+          const input = JSON.parse(toolCall.function.arguments || "{}") as Record<string, unknown>;
+          const { result, changed } = executeTool(toolCall.function.name, input);
           if (changed) actionsPerformed.push(result);
-          toolResults.push({ type: "tool_result", tool_use_id: block.id, content: result });
+          conversation.push({ role: "tool", tool_call_id: toolCall.id, content: result });
         } catch (error) {
-          toolResults.push({
-            type: "tool_result",
-            tool_use_id: block.id,
+          conversation.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
             content: error instanceof Error ? error.message : "Erro ao executar ferramenta",
-            is_error: true,
           });
         }
       }
-      conversation.push({ role: "user", content: toolResults });
     }
 
     return NextResponse.json({
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("Orchestrator error:", error);
-    const { status, code, message } = describeAnthropicError(error);
+    const { status, code, message } = describeLlmError(error);
     return NextResponse.json({ error: code, content: message }, { status });
   }
 }
