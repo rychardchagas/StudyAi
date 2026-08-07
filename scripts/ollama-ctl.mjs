@@ -55,7 +55,12 @@ async function start() {
   }
   const bin = resolveOllamaBin();
   let spawnFailed = false;
-  const child = spawn(bin, ["serve"], { detached: true, stdio: "ignore" });
+  // windowsHide matters here specifically because of `detached: true`: on Windows, a detached
+  // console-subsystem child (ollama.exe is one) gets its own new console window instead of
+  // sharing the parent's — and since this process is meant to keep running as a background
+  // server, that window never closes on its own. Without windowsHide, every `pnpm ai:start`
+  // leaves a fresh, empty-looking CMD window open on the desktop indefinitely.
+  const child = spawn(bin, ["serve"], { detached: true, stdio: "ignore", windowsHide: true });
   child.on("error", (err) => {
     spawnFailed = true;
     console.error(`Não consegui iniciar o Ollama (${bin}): ${err.message}`);
