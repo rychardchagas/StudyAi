@@ -116,7 +116,11 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
         }),
       });
       if (!res.ok) throw new Error("Falha ao salvar");
-      toast.success("Salvo e calendário atualizado!");
+      // This only PATCHes /api/profile — it does not call /api/calendar/generate. The old copy
+      // here ("Salvo e calendário atualizado!") promised a regeneration that never happened;
+      // don't restore that wording without actually wiring the regeneration call.
+      toast.success("Preferências salvas.");
+      router.refresh();
     } catch {
       toast.error("Não foi possível salvar as alterações");
     } finally {
@@ -289,7 +293,8 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
           {activeTab === "horarios" && (
             <div>
               <div className="text-xs text-dim mb-2.5 leading-relaxed">
-                Clique nos slots para marcar disponibilidade. O calendário regenera ao salvar.
+                Clique nos slots para marcar disponibilidade. Salvar aqui atualiza sua preferência —
+                o calendário só recalcula quando você volta ao Dashboard e clica em “Replanejar”.
               </div>
               <SchedGrid slots={availability} setSlots={setAvailability} />
               <div className="flex gap-1.5 mt-2.5">
