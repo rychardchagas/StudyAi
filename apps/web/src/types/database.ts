@@ -58,6 +58,7 @@ export interface Module {
   fsrs_reps: number;
   fsrs_lapses: number;
   fsrs_state: FlashcardState;
+  topics: string[];
   created_at: string;
   updated_at: string;
 }

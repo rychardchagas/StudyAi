@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS modules (
   fsrs_reps INTEGER DEFAULT 0,
   fsrs_lapses INTEGER DEFAULT 0,
   fsrs_state TEXT DEFAULT 'new' CHECK (fsrs_state IN ('new', 'learning', 'review', 'relearning')),
+  topics TEXT DEFAULT '[]', -- JSON array of subtopic strings, extracted from the ementa (or empty)
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );

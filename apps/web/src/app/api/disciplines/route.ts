@@ -16,7 +16,13 @@ export async function POST(req: NextRequest) {
     const { modules, ...body } = disciplineCreateSchema.parse(await req.json());
     const discipline = createDiscipline(body);
     modules?.forEach((m, i) =>
-      createModule({ discipline_id: discipline.id, name: m.name, estimated_hours: m.estimated_hours, order_index: i })
+      createModule({
+        discipline_id: discipline.id,
+        name: m.name,
+        estimated_hours: m.estimated_hours,
+        order_index: i,
+        topics: m.topics,
+      })
     );
     return NextResponse.json(listDisciplines().find((d) => d.id === discipline.id), { status: 201 });
   } catch (error) {

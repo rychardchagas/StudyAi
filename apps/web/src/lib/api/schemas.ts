@@ -9,6 +9,8 @@ const fixedSlotSchema = z.object({
   slotIndex: z.number().int().min(0),
 });
 
+const topicsSchema = z.array(z.string().max(200)).max(50);
+
 export const disciplineCreateSchema = z
   .object({
     name: z.string().min(1).max(200),
@@ -28,6 +30,7 @@ export const disciplineCreateSchema = z
         z.object({
           name: z.string().min(1).max(200),
           estimated_hours: z.number().int().min(0).max(1000).optional(),
+          topics: topicsSchema.optional(),
         })
       )
       .optional(),
@@ -89,6 +92,7 @@ export const moduleCreateSchema = z
     status: z.enum(["pend", "prog", "done"]).optional(),
     estimated_hours: z.number().int().min(0).max(1000).optional(),
     order_index: z.number().int().min(0).optional(),
+    topics: topicsSchema.optional(),
   })
   .strict();
 
@@ -98,6 +102,7 @@ export const modulePatchSchema = z
     status: z.enum(["pend", "prog", "done"]).optional(),
     estimated_hours: z.number().int().min(0).max(1000).optional(),
     order_index: z.number().int().min(0).optional(),
+    topics: topicsSchema.optional(),
     fsrs_stability: z.number().min(0).optional(),
     fsrs_difficulty: z.number().min(0).optional(),
     fsrs_due_date: z.string().nullable().optional(),

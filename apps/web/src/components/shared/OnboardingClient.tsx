@@ -15,6 +15,7 @@ import type { Discipline, Priority } from "@/types";
 interface ModuleDraft {
   name: string;
   estimated_hours: number;
+  topics?: string[];
 }
 
 interface DisciplineDraft {
@@ -119,7 +120,7 @@ export function OnboardingClient() {
         const data: {
           disciplineName?: string;
           estimatedWeeklyHours?: number;
-          modules?: Array<{ name: string; estimatedHours?: number }>;
+          modules?: Array<{ name: string; estimatedHours?: number; topics?: string[] }>;
         } = await res.json();
         importedDrafts.push({
           name: data.disciplineName || file.name.replace(/\.[^./]+$/, ""),
@@ -128,7 +129,7 @@ export function OnboardingClient() {
           exam_date: "",
           modules: (data.modules ?? [])
             .filter((m) => m.name?.trim())
-            .map((m) => ({ name: m.name.trim(), estimated_hours: m.estimatedHours || 2 })),
+            .map((m) => ({ name: m.name.trim(), estimated_hours: m.estimatedHours || 2, topics: m.topics })),
         });
       } catch (error) {
         console.error("Failed to import ementa", file.name, error);
@@ -207,7 +208,7 @@ export function OnboardingClient() {
             exam_date: d.exam_date || undefined,
             modules: d.modules
               .filter((m) => m.name.trim().length > 0)
-              .map((m) => ({ name: m.name.trim(), estimated_hours: m.estimated_hours || undefined })),
+              .map((m) => ({ name: m.name.trim(), estimated_hours: m.estimated_hours || undefined, topics: m.topics })),
           }),
         });
         if (res.ok) created.push(await res.json());

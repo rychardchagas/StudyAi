@@ -220,7 +220,7 @@ export function DisciplinesClient({
       prioridade: form.prioridade,
       exam_date: form.exam_date || null,
       progress: 0,
-      modules: parsedModules.map((m) => ({ name: m.name, estimated_hours: m.estimatedHours })),
+      modules: parsedModules.map((m) => ({ name: m.name, estimated_hours: m.estimatedHours, topics: m.topics })),
     });
     setForm(emptyForm);
     setParsedModules([]);

@@ -30,6 +30,7 @@ function makeModule(overrides: Partial<Module> & { id: string; name: string; sta
     fsrs_reps: 0,
     fsrs_lapses: 0,
     fsrs_state: "new",
+    topics: [],
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
     ...overrides,

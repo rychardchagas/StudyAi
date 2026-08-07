@@ -84,6 +84,12 @@ function getDb(): DatabaseSync {
   if (!moduleColumns.some((c) => c.name === "fsrs_state")) {
     db.exec(`ALTER TABLE modules ADD COLUMN fsrs_state TEXT DEFAULT 'new'`);
   }
+  // Migration: subtopics extracted from an ementa used to be discarded after parsing — nothing
+  // persisted them, so the study coach could never ground its recall questions in real module
+  // content. Needed for that (see sessions/*, SessionClient's recall-question generation).
+  if (!moduleColumns.some((c) => c.name === "topics")) {
+    db.exec(`ALTER TABLE modules ADD COLUMN topics TEXT DEFAULT '[]'`);
+  }
 
   global.__studyaiDb = db;
   return db;
@@ -161,13 +167,20 @@ function parseDiscipline(row: Record<string, unknown>): Discipline {
   return { ...row, fixed_schedule: JSON.parse((row.fixed_schedule as string) ?? "[]") } as unknown as Discipline;
 }
 
+function parseModule(row: Record<string, unknown>): Module {
+  return { ...row, topics: JSON.parse((row.topics as string) ?? "[]") } as unknown as Module;
+}
+
 export function listDisciplines(): Discipline[] {
   const db = getDb();
   const disciplines = toPlainArray<Record<string, unknown>>(
     db.prepare(`SELECT * FROM disciplines ORDER BY created_at ASC`).all()
   ).map(parseDiscipline);
   const modulesStmt = db.prepare(`SELECT * FROM modules WHERE discipline_id = ? ORDER BY order_index ASC`);
-  return disciplines.map((d) => ({ ...d, modules: toPlainArray<Module>(modulesStmt.all(d.id)) }));
+  return disciplines.map((d) => ({
+    ...d,
+    modules: toPlainArray<Record<string, unknown>>(modulesStmt.all(d.id)).map(parseModule),
+  }));
 }
 
 // Every discipline used to default to the same hardcoded "#3B82F6" unless a caller explicitly
@@ -281,24 +294,26 @@ export function resetAllData(): { disciplines: number; modules: number; sessions
 export function listModules(disciplineId?: string): Module[] {
   const db = getDb();
   if (disciplineId) {
-    return toPlainArray<Module>(
+    return toPlainArray<Record<string, unknown>>(
       db.prepare(`SELECT * FROM modules WHERE discipline_id = ? ORDER BY order_index ASC`).all(disciplineId)
-    );
+    ).map(parseModule);
   }
-  return toPlainArray<Module>(db.prepare(`SELECT * FROM modules ORDER BY order_index ASC`).all());
+  return toPlainArray<Record<string, unknown>>(db.prepare(`SELECT * FROM modules ORDER BY order_index ASC`).all()).map(
+    parseModule
+  );
 }
 
 export function getModule(id: string): Module | undefined {
   const row = getDb().prepare(`SELECT * FROM modules WHERE id = ?`).get(id);
-  return row ? toPlain<Module>(row) : undefined;
+  return row ? parseModule(row as Record<string, unknown>) : undefined;
 }
 
 export function createModule(input: Partial<Module> & { discipline_id: string; name: string }): Module {
   const db = getDb();
   const id = newId();
   db.prepare(
-    `INSERT INTO modules (id, discipline_id, name, status, estimated_hours, order_index)
-     VALUES (@id, @discipline_id, @name, @status, @estimated_hours, @order_index)`
+    `INSERT INTO modules (id, discipline_id, name, status, estimated_hours, order_index, topics)
+     VALUES (@id, @discipline_id, @name, @status, @estimated_hours, @order_index, @topics)`
   ).run(
     bind({
       id,
@@ -307,9 +322,10 @@ export function createModule(input: Partial<Module> & { discipline_id: string; n
       status: input.status ?? "pend",
       estimated_hours: input.estimated_hours ?? 4,
       order_index: input.order_index ?? 0,
+      topics: JSON.stringify(input.topics ?? []),
     })
   );
-  return toPlain<Module>(db.prepare(`SELECT * FROM modules WHERE id = ?`).get(id));
+  return parseModule(toPlain<Record<string, unknown>>(db.prepare(`SELECT * FROM modules WHERE id = ?`).get(id)));
 }
 
 export function deleteModule(id: string): void {
@@ -317,7 +333,7 @@ export function deleteModule(id: string): void {
 }
 
 const MODULE_UPDATABLE_FIELDS = [
-  "name", "status", "estimated_hours", "order_index",
+  "name", "status", "estimated_hours", "order_index", "topics",
   "fsrs_stability", "fsrs_difficulty", "fsrs_due_date", "fsrs_reps", "fsrs_lapses", "fsrs_state",
 ] as const;
 
@@ -327,11 +343,11 @@ export function updateModule(id: string, rawUpdates: Partial<Module>): Module {
   const fields = Object.keys(updates);
   if (fields.length) {
     const assignments = fields.map((f) => `${f} = @${f}`).join(", ");
-    db.prepare(`UPDATE modules SET ${assignments}, updated_at = @updated_at WHERE id = @id`).run(
-      bind({ ...updates, id, updated_at: now() })
-    );
+    const params: Record<string, unknown> = { ...updates, id, updated_at: now() };
+    if ("topics" in updates) params.topics = JSON.stringify(updates.topics ?? []);
+    db.prepare(`UPDATE modules SET ${assignments}, updated_at = @updated_at WHERE id = @id`).run(bind(params));
   }
-  return toPlain<Module>(db.prepare(`SELECT * FROM modules WHERE id = ?`).get(id));
+  return parseModule(toPlain<Record<string, unknown>>(db.prepare(`SELECT * FROM modules WHERE id = ?`).get(id)));
 }
 
 // --- Study sessions ---

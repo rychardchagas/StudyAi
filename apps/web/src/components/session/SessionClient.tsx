@@ -64,10 +64,39 @@ export function SessionClient() {
     CHECKLIST_ITEMS.map((label) => ({ label, done: false }))
   );
 
-  const recallQuestions = buildRecallQuestions(moduleName, disciplineName);
+  // Starts with the generic template so the recall panel is never empty/blocked on network — if
+  // this module has real ementa content (`topics`), a background fetch swaps in questions grounded
+  // in that content instead. Silently keeps the generic ones on any failure (Ollama down, no
+  // topics for this module, model error) rather than surfacing an error mid-session.
+  const [recallQuestions, setRecallQuestions] = useState(() => buildRecallQuestions(moduleName, disciplineName));
+  useEffect(() => {
+    if (!moduleId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/sessions/questions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ moduleId, moduleName, disciplineName }),
+        });
+        if (!res.ok) return;
+        const data: { questions: string[] | null } = await res.json();
+        if (!cancelled && data.questions?.length) setRecallQuestions(data.questions);
+      } catch {
+        // keep the generic fallback already in state
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moduleId]);
+
   const [recallIdx, setRecallIdx] = useState(0);
   const [recallAnswer, setRecallAnswer] = useState("");
   const [recallNotes, setRecallNotes] = useState<string[]>([]);
+  const [grading, setGrading] = useState(false);
+  const [recallVerdict, setRecallVerdict] = useState<{ correct: boolean; feedback: string } | null>(null);
   // Default to "Bom" (3) rather than blocking completion on a forced choice — but this is a real,
   // changeable rating now, not the hardcoded 4 ("Fácil") this used to send unconditionally. It's
   // what feeds scheduleCard() in /api/sessions/complete, so it actually drives the module's next
@@ -186,22 +215,38 @@ export function SessionClient() {
   };
   const checkedCount = checklist.filter((c) => c.done).length;
 
-  const handleVerifyRecall = () => {
-    if (!recallAnswer.trim()) {
-      toast.error("Escreva sua resposta primeiro.");
+  const handleVerifyRecall = async () => {
+    if (!recallAnswer.trim() || grading) {
+      if (!recallAnswer.trim()) toast.error("Escreva sua resposta primeiro.");
       return;
     }
     setRecallNotes((p) => [...p, recallAnswer.trim()]);
-    toast.success("Registrado — continue praticando.");
-    setTimeout(() => {
-      setRecallIdx((p) => (p + 1) % recallQuestions.length);
-      setRecallAnswer("");
-    }, 600);
+    setGrading(true);
+    setRecallVerdict(null);
+    try {
+      const res = await fetch("/api/sessions/grade-recall", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: recallQuestions[recallIdx],
+          answer: recallAnswer.trim(),
+          moduleName: moduleName || disciplineName,
+        }),
+      });
+      if (!res.ok) throw new Error("grading unavailable");
+      const verdict: { correct: boolean; feedback: string } = await res.json();
+      setRecallVerdict(verdict);
+    } catch {
+      toast("Não foi possível avaliar agora — resposta registrada mesmo assim.", { icon: "⚠️" });
+    } finally {
+      setGrading(false);
+    }
   };
 
   const handleNextRecall = () => {
     setRecallIdx((p) => (p + 1) % recallQuestions.length);
     setRecallAnswer("");
+    setRecallVerdict(null);
   };
 
   const sendCoachMessage = async (text: string) => {
@@ -561,13 +606,29 @@ export function SessionClient() {
             </div>
             <textarea
               value={recallAnswer}
-              onChange={(e) => setRecallAnswer(e.target.value)}
+              onChange={(e) => {
+                setRecallAnswer(e.target.value);
+                setRecallVerdict(null);
+              }}
               placeholder="Escreva sua resposta…"
               className="mb-2 min-h-[50px] w-full resize-none rounded-lg border border-border bg-card2 p-2 text-xs text-txt outline-none"
             />
+            {recallVerdict && (
+              <div
+                className={cn(
+                  "mb-2 rounded-lg border px-2.5 py-1.5 text-xs leading-relaxed",
+                  recallVerdict.correct
+                    ? "border-success/30 bg-success/10 text-success"
+                    : "border-danger/30 bg-danger/10 text-danger"
+                )}
+              >
+                {recallVerdict.correct ? "✓ Certo — " : "✗ Incompleto — "}
+                <span className="text-txt">{recallVerdict.feedback}</span>
+              </div>
+            )}
             <div className="flex gap-1.5">
-              <Button variant="primary" size="sm" onClick={handleVerifyRecall}>
-                ✓ Verificar
+              <Button variant="primary" size="sm" onClick={handleVerifyRecall} disabled={grading}>
+                {grading ? "Avaliando…" : "✓ Verificar"}
               </Button>
               <Button size="sm" onClick={handleNextRecall}>
                 → Próxima

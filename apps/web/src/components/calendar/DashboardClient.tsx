@@ -99,7 +99,10 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
   const streakDays = useMemo(() => calcStreakDays(initialSessions), [initialSessions]);
   const allModules = useMemo(() => initialDisciplines.flatMap((d) => d.modules ?? []), [initialDisciplines]);
   const pendingReviews = useMemo(() => countPendingReviews(allModules), [allModules]);
-  const insights = useMemo(() => generateInsights(initialSessions, allModules), [initialSessions, allModules]);
+  const insights = useMemo(
+    () => generateInsights(initialSessions, allModules, initialDisciplines),
+    [initialSessions, allModules, initialDisciplines]
+  );
 
   const orchestratorContext: OrchestratorContext = useMemo(
     () => ({

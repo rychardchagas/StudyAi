@@ -9,8 +9,15 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { ActivityHeatmap } from "@/components/shared/ActivityHeatmap";
 import { InsightsList } from "@/components/shared/InsightsList";
 import { Button } from "@/components/ui/Button";
-import { calcWeeklyAdherence, calcStreakDays, generateInsights } from "@/lib/agents/progress";
+import { calcWeeklyAdherence, calcStreakDays, generateInsights, calcDisciplinePace, type PaceStatus } from "@/lib/agents/progress";
 import type { Discipline, StudySession } from "@/types";
+
+const PACE_STYLES: Record<PaceStatus, { label: string; className: string }> = {
+  atrasado: { label: "Atrasado", className: "bg-danger/15 text-danger border-danger/30" },
+  no_prazo: { label: "No prazo", className: "bg-success/15 text-success border-success/30" },
+  adiantado: { label: "Adiantado", className: "bg-primary/15 text-primary border-primary/30" },
+  sem_prazo: { label: "Sem prazo", className: "bg-card2 text-muted border-border" },
+};
 
 interface ProgressClientProps {
   initialDisciplines: Discipline[];
@@ -90,8 +97,13 @@ export function ProgressClient({ initialDisciplines, initialSessions }: Progress
   );
 
   const insights = useMemo(
-    () => generateInsights(initialSessions, allModules),
-    [initialSessions, allModules]
+    () => generateInsights(initialSessions, allModules, initialDisciplines),
+    [initialSessions, allModules, initialDisciplines]
+  );
+
+  const paces = useMemo(
+    () => initialDisciplines.map((d) => ({ discipline: d, pace: calcDisciplinePace(d) })),
+    [initialDisciplines]
   );
 
   const disciplineCounts = useMemo(() => {
@@ -162,6 +174,30 @@ export function ProgressClient({ initialDisciplines, initialSessions }: Progress
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-lg p-3 mb-2.5">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-2 pb-1.5 border-b border-border">
+          Guia de progresso — está no prazo?
+        </div>
+        <div className="flex flex-col gap-2">
+          {paces.map(({ discipline, pace }) => (
+            <div key={discipline.id} className="flex items-center gap-2.5">
+              <div className="w-1.5 h-1.5 rounded-sm shrink-0" style={{ background: discipline.color }} />
+              <span className="text-[11px] text-dim w-[110px] shrink-0 overflow-hidden text-ellipsis whitespace-nowrap">
+                {discipline.name}
+              </span>
+              <span
+                className={`font-mono text-[9px] font-semibold uppercase tracking-wide rounded px-1.5 py-0.5 border shrink-0 ${PACE_STYLES[pace.status].className}`}
+              >
+                {PACE_STYLES[pace.status].label}
+              </span>
+              <span className="text-[11px] text-muted flex-1 min-w-0 truncate" title={pace.detail}>
+                {pace.detail}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 

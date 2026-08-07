@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import type { Discipline, Module, ModuleStatus } from "@/types";
 
 export type NewDisciplineInput = Omit<Partial<Discipline>, "modules"> & {
-  modules?: Array<{ name: string; estimated_hours?: number }>;
+  modules?: Array<{ name: string; estimated_hours?: number; topics?: string[] }>;
 };
 
 export function useDisciplines(initial: Discipline[]) {

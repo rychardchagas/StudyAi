@@ -2,7 +2,7 @@
  * Progress Agent
  * Tracks adherence, streaks, and pending reviews; surfaces plain-language insights
  */
-import type { Module, StudySession } from "@/types";
+import type { Discipline, Module, StudySession } from "@/types";
 
 export function calcWeeklyAdherence(sessions: StudySession[], now: Date = new Date()): number {
   const weekStart = new Date(now);
@@ -53,7 +53,95 @@ export interface Insight {
   agent: "Progress Agent" | "Pedagogy Agent";
 }
 
-export function generateInsights(sessions: StudySession[], modules: Module[]): Insight[] {
+export type PaceStatus = "atrasado" | "no_prazo" | "adiantado" | "sem_prazo";
+
+export interface DisciplinePace {
+  disciplineId: string;
+  status: PaceStatus;
+  detail: string;
+  expectedProgress: number | null; // % expected by now, given exam_date and when the discipline was added; null when there's no exam_date to project against
+  actualProgress: number;
+}
+
+// A student's own goal ("do I finish before the exam?") isn't answered by adherence/streak
+// alone — this compares actual module completion against a straight-line expectation from
+// when the discipline was added to its exam_date. Simple by design (linear pacing, not
+// workload-weighted), but it's an honest, explainable number rather than nothing.
+const BEHIND_THRESHOLD = -15; // percentage points below the linear-pace expectation
+const AHEAD_THRESHOLD = 10;
+
+export function calcDisciplinePace(d: Discipline, now: Date = new Date()): DisciplinePace {
+  const actualProgress = d.progress;
+  if (!d.exam_date) {
+    return {
+      disciplineId: d.id,
+      status: "sem_prazo",
+      detail: "Sem data de prova definida — adicione uma para acompanhar o ritmo.",
+      expectedProgress: null,
+      actualProgress,
+    };
+  }
+
+  const start = new Date(d.created_at).getTime();
+  const end = new Date(d.exam_date).getTime();
+  const nowMs = now.getTime();
+
+  if (!(end > start)) {
+    return {
+      disciplineId: d.id,
+      status: "sem_prazo",
+      detail: "Data de prova inválida.",
+      expectedProgress: null,
+      actualProgress,
+    };
+  }
+
+  const daysLeft = Math.ceil((end - nowMs) / 86_400_000);
+
+  if (nowMs >= end) {
+    return actualProgress >= 100
+      ? { disciplineId: d.id, status: "no_prazo", detail: "Prazo chegou com 100% concluído.", expectedProgress: 100, actualProgress }
+      : {
+          disciplineId: d.id,
+          status: "atrasado",
+          detail: `Prazo da prova já passou com apenas ${actualProgress}% concluído.`,
+          expectedProgress: 100,
+          actualProgress,
+        };
+  }
+
+  const elapsedFrac = Math.max(0, Math.min(1, (nowMs - start) / (end - start)));
+  const expectedProgress = Math.round(elapsedFrac * 100);
+  const diff = actualProgress - expectedProgress;
+
+  if (diff <= BEHIND_THRESHOLD) {
+    return {
+      disciplineId: d.id,
+      status: "atrasado",
+      detail: `${expectedProgress}% esperado pelo tempo decorrido, mas só ${actualProgress}% concluído — ${daysLeft} ${daysLeft === 1 ? "dia" : "dias"} até a prova.`,
+      expectedProgress,
+      actualProgress,
+    };
+  }
+  if (diff >= AHEAD_THRESHOLD) {
+    return {
+      disciplineId: d.id,
+      status: "adiantado",
+      detail: `${actualProgress}% concluído, acima do ritmo esperado (${expectedProgress}%) — ${daysLeft} ${daysLeft === 1 ? "dia" : "dias"} até a prova.`,
+      expectedProgress,
+      actualProgress,
+    };
+  }
+  return {
+    disciplineId: d.id,
+    status: "no_prazo",
+    detail: `${actualProgress}% concluído, dentro do ritmo esperado (${expectedProgress}%) — ${daysLeft} ${daysLeft === 1 ? "dia" : "dias"} até a prova.`,
+    expectedProgress,
+    actualProgress,
+  };
+}
+
+export function generateInsights(sessions: StudySession[], modules: Module[], disciplines: Discipline[] = []): Insight[] {
   const insights: Insight[] = [];
   const adherence = calcWeeklyAdherence(sessions);
   const streak = calcStreakDays(sessions);
@@ -67,6 +155,12 @@ export function generateInsights(sessions: StudySession[], modules: Module[]): I
   }
   if (pending > 5) {
     insights.push({ text: `${pending} revisões atrasadas. Priorize-as na próxima sessão.`, agent: "Pedagogy Agent" });
+  }
+  for (const d of disciplines) {
+    const pace = calcDisciplinePace(d);
+    if (pace.status === "atrasado") {
+      insights.push({ text: `"${d.name}" está atrasada: ${pace.detail}`, agent: "Progress Agent" });
+    }
   }
   return insights;
 }
