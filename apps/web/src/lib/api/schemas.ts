@@ -131,5 +131,10 @@ export const sessionCompleteSchema = z
     moduleId: z.string().min(1).optional(),
     recallScore: z.number().int().min(1).max(4).optional(),
     notes: z.string().max(5000).optional(),
+    // Explicit false = "não terminei, quero retomar depois" — the student didn't do a real
+    // recall check, so no FSRS update happens; the module just gets flagged so the scheduler
+    // gives it back to them instead of rotating on to something else. Omitted/true = normal
+    // completion flow, unchanged.
+    finished: z.boolean().optional(),
   })
   .strict();

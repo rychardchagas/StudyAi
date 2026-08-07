@@ -273,7 +273,7 @@ export function SessionClient() {
     }
   };
 
-  const handleComplete = async () => {
+  const handleComplete = async (finished: boolean = true) => {
     if (completing) return;
     setCompleting(true);
     try {
@@ -289,17 +289,23 @@ export function SessionClient() {
         body: JSON.stringify({
           sessionId: id,
           moduleId: moduleId || undefined,
-          recallScore: recallRating,
+          // Not finished: no self-rating — they didn't do a real recall check, so scoring one
+          // would be dishonest FSRS data. The module just gets flagged to come back next time
+          // (see finished:false handling in /api/sessions/complete).
+          recallScore: finished ? recallRating : undefined,
           notes: recallNotes.join("\n\n") || recallAnswer.trim() || undefined,
+          finished,
         }),
       });
       if (!res.ok) throw new Error("Failed to complete session");
       clearActiveSession();
-      toast.success("Sessão concluída! Bom trabalho.");
+      toast.success(
+        finished ? "Sessão concluída! Bom trabalho." : "Sem problemas — esse módulo volta pra você na próxima sessão."
+      );
       router.push("/dashboard");
       router.refresh();
     } catch {
-      toast.error("Não foi possível concluir a sessão.");
+      toast.error("Não foi possível salvar a sessão.");
     } finally {
       setCompleting(false);
     }
@@ -510,12 +516,21 @@ export function SessionClient() {
             </div>
             <Button
               variant="primary"
-              onClick={handleComplete}
+              onClick={() => handleComplete(true)}
               disabled={completing}
               className="relative w-full justify-center disabled:opacity-60"
             >
-              {completing ? "Concluindo…" : "✓ Concluir sessão"}
+              {completing ? "Salvando…" : "✓ Concluir sessão"}
             </Button>
+            <button
+              type="button"
+              onClick={() => handleComplete(false)}
+              disabled={completing}
+              title="Marca o módulo pra voltar na próxima sessão, sem contar como recall avaliado"
+              className="relative mt-1.5 w-full rounded-lg border border-border bg-transparent py-1.5 text-[11px] text-muted cursor-pointer hover:text-dim disabled:opacity-60"
+            >
+              ↺ Não terminei — retomar depois
+            </button>
           </div>
 
           {/* Checklist */}

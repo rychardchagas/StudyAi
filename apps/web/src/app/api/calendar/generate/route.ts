@@ -36,7 +36,11 @@ Apply these rules, in order of precedence:
      Deliberada (active problem-solving) instead of Repetição Espaçada, since simply re-showing
      the material clearly isn't enough for this student on this module.
    - Otherwise → Repetição Espaçada.
-5. For modules with status "prog" → schedule Active Recall (or Feynman occasionally, to vary it).
+5. A module with status "prog" is the student's current active focus — this usually means they
+   started it in a session but marked "não terminei" (didn't finish). Give it EVERY session slot
+   for that discipline this week (not just some), ahead of any "pend" module, until the student
+   marks it done — the student explicitly asked to come back to the same thing, not move on.
+   Methodology: Active Recall (or Feynman occasionally, to vary it).
 6. For modules with status "pend" → schedule Prática Deliberada.
 7. If student context is present, let it override a borderline call between two reasonable
    methodologies — it's a direct signal from the student about what they need, weigh it seriously.

@@ -6,16 +6,24 @@ import { scheduleCard, type FSRSCard, type Rating } from "@/lib/utils/fsrs";
 
 export async function POST(req: NextRequest) {
   try {
-    const { sessionId, moduleId, recallScore, notes } = sessionCompleteSchema.parse(await req.json());
+    const { sessionId, moduleId, recallScore, notes, finished } = sessionCompleteSchema.parse(await req.json());
 
     completeSession(sessionId, { recallScore, notes });
 
-    // Actually apply spaced repetition instead of just recording the score: reschedule the
-    // module's FSRS card from its current stored state, using the rating the user just gave.
-    // Silently skips if there's no module (free-form sessions) or no rating was given.
-    if (moduleId && recallScore) {
+    if (moduleId) {
       const mod = getModule(moduleId);
-      if (mod) {
+      if (mod && finished === false) {
+        // "Não terminei — retomar depois": no real recall check happened, so no FSRS update —
+        // scoring one would be dishonest data. Just flag the module as the student's current
+        // focus (unless it's already "done") so pickModuleForSession's inProg priority
+        // (scheduler.ts) hands them the *same* module again next time instead of rotating on.
+        if (mod.status !== "done") {
+          updateModule(moduleId, { status: "prog" });
+          recalculateAllProgress();
+        }
+      } else if (mod && recallScore) {
+        // Actually apply spaced repetition instead of just recording the score: reschedule the
+        // module's FSRS card from its current stored state, using the rating the user just gave.
         const card: FSRSCard = {
           stability: mod.fsrs_stability,
           difficulty: mod.fsrs_difficulty,
