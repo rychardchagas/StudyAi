@@ -20,6 +20,20 @@ interface ParsedSyllabus {
   modules: ParsedModule[];
 }
 
+// PDFs with a table-style layout (title in one column, hours in another) often come out of
+// pdf-parse with the columns interleaved or flattened — seen live where a real ementa produced
+// modules named "18", "12", "15"... (the hours column) instead of the actual titles. Rather than
+// surface that confusing garbage in the UI, replace anything that's just a number (with an
+// optional "h"/"horas" suffix) with a generic placeholder the student can rename in Step 3.
+const NUMERIC_ONLY_NAME = /^\d+([.,]\d+)?\s*(h|hrs?|horas?)?$/i;
+
+function sanitizeModules(modules: ParsedModule[] | undefined): ParsedModule[] {
+  return (modules ?? []).map((m, i) => {
+    const trimmed = (m.name ?? "").trim();
+    return trimmed && !NUMERIC_ONLY_NAME.test(trimmed) ? { ...m, name: trimmed } : { ...m, name: `Módulo ${i + 1}` };
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const form = await req.formData();
@@ -55,7 +69,11 @@ Return ONLY this JSON shape:
   "disciplineName": "string",
   "estimatedWeeklyHours": number (a reasonable weekly *study* hours estimate for a student taking this course over a semester — not just classroom contact hours; typically 2-8),
   "modules": [{ "name": "string", "estimatedHours": number, "prerequisites": ["string"], "topics": ["string"] }]
-}`,
+}
+Each module's "name" MUST be its descriptive title (e.g. "Virtualização e Containers") — NEVER
+just a number or the hour count. If the source document's layout makes a module's real title
+unclear (garbled table columns, OCR noise), still put your best-guess title in "name", not a
+number.`,
         },
       ],
     });
@@ -72,7 +90,7 @@ Return ONLY this JSON shape:
     return NextResponse.json({
       disciplineName: providedName || parsed.disciplineName || file.name.replace(/\.[^./]+$/, ""),
       estimatedWeeklyHours: parsed.estimatedWeeklyHours || 4,
-      modules: parsed.modules ?? [],
+      modules: sanitizeModules(parsed.modules),
     });
   } catch (error) {
     console.error("Curriculum parse error:", error);
