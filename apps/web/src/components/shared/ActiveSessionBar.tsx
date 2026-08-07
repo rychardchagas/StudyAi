@@ -8,7 +8,15 @@ import { usePathname, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { readActiveSession, clearActiveSession, type StoredActiveSession } from "@/lib/utils/activeSession";
 
-export function ActiveSessionBar() {
+interface ActiveSessionBarProps {
+  // Real discipline ids from the server, passed down each layout render — lets a stale
+  // localStorage entry from before a reset ("Apagar tudo" in Configurações) or a deleted
+  // discipline be caught and cleared instead of showing a "sessão em andamento" for something
+  // that no longer exists (localStorage has no idea the SQLite data underneath it changed).
+  disciplineIds: string[];
+}
+
+export function ActiveSessionBar({ disciplineIds }: ActiveSessionBarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [active, setActive] = useState<StoredActiveSession | null>(null);
@@ -17,8 +25,14 @@ export function ActiveSessionBar() {
   // No storage event fires in the tab that wrote the key, so re-check on every navigation —
   // that's what actually picks up a session just started (or just completed) in this same tab.
   useEffect(() => {
-    setActive(readActiveSession());
-  }, [pathname]);
+    const stored = readActiveSession();
+    if (stored && !disciplineIds.includes(stored.disciplineId)) {
+      clearActiveSession();
+      setActive(null);
+      return;
+    }
+    setActive(stored);
+  }, [pathname, disciplineIds]);
 
   if (!active || pathname === "/session") return null;
 

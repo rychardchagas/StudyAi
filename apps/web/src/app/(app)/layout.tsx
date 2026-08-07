@@ -17,7 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <Topbar disciplines={disciplines} />
-        <ActiveSessionBar />
+        <ActiveSessionBar disciplineIds={disciplines.map((d) => d.id)} />
         {children}
       </div>
     </div>

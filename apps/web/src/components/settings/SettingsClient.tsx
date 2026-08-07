@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Toggle } from "@/components/ui/Toggle";
 import { SchedGrid } from "@/components/shared/SchedGrid";
 import { DAYS_LABELS, SLOT_LABELS } from "@/lib/utils/constants";
+import { clearActiveSession } from "@/lib/utils/activeSession";
 import type { Profile } from "@/types";
 
 interface SettingsClientProps {
@@ -161,6 +162,10 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
     try {
       const res = await fetch("/api/disciplines/reset", { method: "POST" });
       if (!res.ok) throw new Error("Falha ao apagar os dados");
+      // ACTIVE_SESSION_KEY lives in the browser's localStorage, entirely separate from the
+      // SQLite data this just wiped — without this, a stale "sessão em andamento" banner for a
+      // discipline/module that no longer exists would keep showing after the reset.
+      clearActiveSession();
       toast.success("Tudo apagado — hora de começar de novo.");
       router.push("/onboarding");
     } catch {

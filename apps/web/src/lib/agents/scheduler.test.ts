@@ -112,4 +112,32 @@ describe("generateCalendar distribution", () => {
     expect(events.every((e) => e.methodology === "Prática Deliberada")).toBe(true);
     expect(events.some((e) => e.methodology === "Repetição Espaçada")).toBe(false);
   });
+
+  it("excludes days before today on the current week (weekIndex 0) but not other weeks", () => {
+    const disc = makeDiscipline({ id: "a", name: "A", horas_semana: 6, prioridade: "Alta" });
+    const availability = { 0: [1, 2], 1: [1, 2], 2: [1, 2], 3: [1, 2], 4: [1, 2] };
+
+    // "Today" is Thursday (index 3) — Mon/Tue/Wed already happened this week.
+    const thisWeek = generateCalendar([disc], availability, { weekIndex: 0, todayDayOfWeek: 3 });
+    expect(thisWeek.some((e) => e.dayOfWeek < 3)).toBe(false);
+    expect(thisWeek.some((e) => e.dayOfWeek >= 3)).toBe(true);
+
+    // Next week is entirely in the future — todayDayOfWeek shouldn't restrict it even if passed.
+    const nextWeek = generateCalendar([disc], availability, { weekIndex: 1, todayDayOfWeek: 3 });
+    expect(nextWeek.some((e) => e.dayOfWeek < 3)).toBe(true);
+  });
+
+  it("advances the module rotation on future weeks instead of repeating week 0 verbatim", () => {
+    const modules = Array.from({ length: 6 }, (_, i) =>
+      makeModule({ id: `m${i}`, name: `Module ${i}`, status: "pend" })
+    );
+    const disc = makeDiscipline({ id: "a", name: "A", horas_semana: 10, prioridade: "Alta", modules });
+    const availability = { 0: [1, 2, 3], 1: [1, 2, 3] };
+
+    const week0 = generateCalendar([disc], availability, { weekIndex: 0 });
+    const week1 = generateCalendar([disc], availability, { weekIndex: 1 });
+    const week0Modules = week0.map((e) => e.moduleId).join(",");
+    const week1Modules = week1.map((e) => e.moduleId).join(",");
+    expect(week1Modules).not.toBe(week0Modules);
+  });
 });

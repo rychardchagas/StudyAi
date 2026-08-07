@@ -18,7 +18,7 @@ const DEFAULT_AVAIL: Record<number, number[]> = {
 
 const PRI_BONUS: Record<string, number> = { Alta: 2, Média: 0, Baixa: -1 };
 
-function pickModuleForSession(disc: Discipline, sc: number) {
+function pickModuleForSession(disc: Discipline, sc: number, asOf: number) {
   const mods = disc.modules ?? [];
   const inProg = mods.find((m) => m.status === "prog");
   const pend = mods.filter((m) => m.status === "pend");
@@ -27,19 +27,44 @@ function pickModuleForSession(disc: Discipline, sc: number) {
     // Real spaced-repetition due date (lib/utils/fsrs.ts::scheduleCard, wired in
     // sessions/complete) beats the rotation whenever something is actually due — a module you
     // just aced two weeks ago and one you're overdue on shouldn't get the same review slot.
-    const now = Date.now();
-    const due = done.filter((m) => m.fsrs_due_date && new Date(m.fsrs_due_date).getTime() <= now);
+    // `asOf` is "now" for this week (week 0) or a projected date for a future week being browsed
+    // — a review due in 10 days shouldn't show as due when generating next week's plan.
+    const due = done.filter((m) => m.fsrs_due_date && new Date(m.fsrs_due_date).getTime() <= asOf);
     if (due.length) return due[sc % due.length];
     return done[sc % done.length]; // nothing's due yet — keep the rotation so review slots aren't wasted
   }
   return inProg ?? pend[sc % pend.length] ?? done[0];
 }
 
+export interface GenerateCalendarOptions {
+  /** Which week relative to the current real one — 0 = this week, 1 = next week, etc. Advances
+   * the module rotation and spaced-review due-date projection so browsing forward shows genuine
+   * progression instead of repeating week 0 verbatim. */
+  weekIndex?: number;
+  /** Monday=0..Sunday=6. Only meaningful when weekIndex is 0 (or omitted) — days before this one
+   * are excluded from availability, since a student can't go back in time to attend a session
+   * planned for a day of the current week that's already passed. */
+  todayDayOfWeek?: number;
+}
+
 export function generateCalendar(
   disciplines: Discipline[],
-  availSlots: Record<number, number[]> = DEFAULT_AVAIL
+  availSlots: Record<number, number[]> = DEFAULT_AVAIL,
+  options: GenerateCalendarOptions = {}
 ): CalendarEvent[] {
   if (!disciplines.length) return [];
+
+  const { weekIndex = 0, todayDayOfWeek } = options;
+  const isCurrentWeek = weekIndex === 0;
+  const asOf = Date.now() + weekIndex * 7 * 86_400_000;
+
+  // On the current week, zero out days that have already gone by — every other week (browsed
+  // forward) is entirely in the future and plannable in full.
+  const effectiveAvail: Record<number, number[]> =
+    isCurrentWeek && todayDayOfWeek !== undefined
+      ? Object.fromEntries(Array.from({ length: 7 }, (_, day) => [day, day < todayDayOfWeek ? [] : availSlots[day] ?? []]))
+      : availSlots;
+  const isPastDay = (day: number) => isCurrentWeek && todayDayOfWeek !== undefined && day < todayDayOfWeek;
 
   const events: CalendarEvent[] = [];
   const placed = new Set<string>();
@@ -50,10 +75,11 @@ export function generateCalendar(
   // they happen every week regardless of what's marked "available" for proportional scheduling.
   for (const disc of disciplines) {
     for (const { dayOfWeek, slotIndex } of disc.fixed_schedule ?? []) {
+      if (isPastDay(dayOfWeek)) continue;
       const key = `${dayOfWeek}-${slotIndex}`;
       if (placed.has(key)) continue; // another discipline already claimed this slot — first one wins
       const sc = sessionCount[disc.id] ?? 0;
-      const mod = pickModuleForSession(disc, sc);
+      const mod = pickModuleForSession(disc, sc, asOf);
       events.push({
         disciplineId: disc.id,
         disciplineName: disc.name,
@@ -77,7 +103,7 @@ export function generateCalendar(
   // boundaries would be accidental, and a lower-weight discipline could land entirely on whichever
   // days happen to come first in the week instead of being spread across it.
   const available: Array<{ col: number; slot: number }> = [];
-  const byDay = Array.from({ length: 7 }, (_, col) => [...(availSlots[col] || [])].sort((a, b) => a - b));
+  const byDay = Array.from({ length: 7 }, (_, col) => [...(effectiveAvail[col] || [])].sort((a, b) => a - b));
   const maxPerDay = Math.max(0, ...byDay.map((d) => d.length));
   for (let r = 0; r < maxPerDay; r++) {
     for (let col = 0; col < 7; col++) {
@@ -94,6 +120,16 @@ export function generateCalendar(
     used: 0,
   }));
   allocations.sort((a, b) => (PRI_BONUS[b.disc.prioridade] ?? 0) - (PRI_BONUS[a.disc.prioridade] ?? 0));
+
+  // Advances each discipline's module-rotation pointer by however many sessions it would have
+  // gotten in the weeks between now and the one being generated — otherwise every week just
+  // replays week 0's rotation from the same starting point, which is exactly why browsing
+  // forward used to show identical modules every time.
+  if (weekIndex > 0) {
+    for (const alloc of allocations) {
+      sessionCount[alloc.disc.id] = (sessionCount[alloc.disc.id] ?? 0) + weekIndex * alloc.count;
+    }
+  }
 
   const queue: typeof allocations = [];
   for (let pass = 0; pass < 20; pass++) {
@@ -128,11 +164,11 @@ export function generateCalendar(
     const disc = alloc.disc;
 
     const sc = sessionCount[disc.id] ?? 0;
-    const mod = pickModuleForSession(disc, sc);
+    const mod = pickModuleForSession(disc, sc, asOf);
     const done = (disc.modules ?? []).filter((m) => m.status === "done");
 
     const daysToExam = disc.exam_date
-      ? Math.max(0, Math.ceil((new Date(disc.exam_date).getTime() - Date.now()) / 86400000))
+      ? Math.max(0, Math.ceil((new Date(disc.exam_date).getTime() - asOf) / 86400000))
       : null;
 
     const methodology = selectMethodology(

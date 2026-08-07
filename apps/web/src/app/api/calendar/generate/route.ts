@@ -7,7 +7,7 @@ import type { CalendarEvent } from "@/types";
 
 export async function POST(req: NextRequest) {
   try {
-    const { disciplines, availability, preferences, studentContext } = await req.json();
+    const { disciplines, availability, preferences, studentContext, todayDayOfWeek } = await req.json();
 
     const prompt = `Generate a study calendar for the following week.
 
@@ -18,6 +18,11 @@ ${JSON.stringify(disciplines)}
 Available time slots: ${JSON.stringify(availability)}
 Preferences: ${JSON.stringify(preferences)}
 ${studentContext ? `Student context (from their profile, use this to judge what they actually need — a stated weakness or preference should influence which methodology and which modules you prioritize): ${studentContext}` : ""}
+${
+  typeof todayDayOfWeek === "number"
+    ? `Today is day ${todayDayOfWeek} of the week (0=Monday...6=Sunday). This is the CURRENT week — do NOT schedule anything on a dayOfWeek less than ${todayDayOfWeek}, those days have already passed and the student cannot go back in time to attend them.`
+    : ""
+}
 
 Apply these rules, in order of precedence:
 1. Distribute sessions proportionally to weekly hours per discipline.
@@ -41,6 +46,8 @@ Return ONLY valid JSON in this format:
   "events": [
     {
       "disciplineId": "string",
+      "disciplineName": "string (the discipline's real full name, copied from the input above)",
+      "disciplineColor": "string (the discipline's real color hex, copied from the input above)",
       "moduleId": "string",
       "moduleName": "string",
       "dayOfWeek": 0-6,
@@ -68,6 +75,16 @@ Return ONLY valid JSON in this format:
       console.error("Calendar generation: could not extract JSON from model output:", text);
       throw parseError;
     }
+
+    // Belt and suspenders: don't trust the local model to reliably include disciplineName/Color
+    // even though the prompt now asks for them — backfill from the real discipline data whenever
+    // an event is missing (or got) the wrong one, rather than letting a blank/wrong label render.
+    const disciplineById = new Map((disciplines ?? []).map((d: { id: string }) => [d.id, d]));
+    const events = (calendar.events ?? []).map((e) => {
+      const disc = disciplineById.get(e.disciplineId) as { name?: string; color?: string } | undefined;
+      return disc ? { ...e, disciplineName: disc.name ?? e.disciplineName, disciplineColor: disc.color ?? e.disciplineColor } : e;
+    });
+    calendar = { events };
 
     const qa = validateCalendar(calendar.events ?? [], disciplines ?? []);
     if (!qa.valid) {

@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useCalendar } from "@/lib/hooks/useCalendar";
+import { generateCalendar } from "@/lib/agents/scheduler";
 import { useAI } from "@/lib/hooks/useAI";
 import { calcWeeklyAdherence, calcStreakDays, countPendingReviews, generateInsights } from "@/lib/agents/progress";
 import type { OrchestratorContext } from "@/lib/agents/orchestrator";
@@ -64,16 +65,26 @@ function capitalize(s: string): string {
 
 export function DashboardClient({ initialDisciplines, initialSessions, initialAvailability }: DashboardClientProps) {
   const router = useRouter();
-  const { disciplines, events, generating, regenerate } = useCalendar(initialDisciplines, initialAvailability);
+  const { disciplines, events, availability, generating, regenerate } = useCalendar(
+    initialDisciplines,
+    initialAvailability
+  );
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [chatInput, setChatInput] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
   const [markingDone, setMarkingDone] = useState(false);
   const [showAgents, setShowAgents] = useState(false);
 
-  // The calendar itself is a recurring weekly template (same events every week — see
-  // useCalendar/generateCalendar), so navigating weeks only changes which real dates are
-  // shown as labels; it never re-fetches different events for a different week.
+  // `events` (from useCalendar/regenerate, possibly AI-generated) is always this week's plan.
+  // Browsing to a different week re-derives it locally with the deterministic scheduler advanced
+  // by that many weeks (see generateCalendar's weekIndex) — real progression through the
+  // discipline's modules instead of replaying week 0 unchanged, and computed client-side so
+  // paging weeks feels instant instead of round-tripping to the AI every click.
+  const weekEvents = useMemo(
+    () => (weekOffset === 0 ? events : generateCalendar(disciplines, availability, { weekIndex: weekOffset })),
+    [weekOffset, events, disciplines, availability]
+  );
+
   const weekDates = useMemo(() => {
     const start = startOfWeekMonday(new Date());
     start.setDate(start.getDate() + weekOffset * 7);
@@ -153,11 +164,11 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
 
   const eventsWithDone = useMemo(
     () =>
-      events.map((e) => ({
+      weekEvents.map((e) => ({
         ...e,
         done: doneEventKeys.has(`${e.disciplineId}|${e.moduleId ?? ""}|${e.dayOfWeek}`),
       })),
-    [events, doneEventKeys]
+    [weekEvents, doneEventKeys]
   );
 
   function handleStartSession(event: CalendarEvent) {
@@ -290,7 +301,7 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
               </button>
               <div
                 className="text-[13px] font-semibold text-txt min-w-[130px] text-center"
-                title="O calendário é um modelo semanal recorrente — as mesmas sessões se repetem toda semana."
+                title="Semanas futuras são projetadas a partir do seu ritmo atual — módulos concluídos e revisões avançam a cada semana."
               >
                 {weekLabel}
               </div>
