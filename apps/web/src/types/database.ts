@@ -20,6 +20,14 @@ export interface FixedSlot {
   slotIndex: number; // index into SLOT_LABELS
 }
 
+export interface DisciplineGroup {
+  id: string;
+  name: string;
+  color: string;
+  order_index: number;
+  created_at: string;
+}
+
 export interface Discipline {
   id: string;
   name: string;
@@ -30,6 +38,7 @@ export interface Discipline {
   exam_date: string | null;
   progress: number;
   fixed_schedule: FixedSlot[];
+  group_id: string | null;
   created_at: string;
   updated_at: string;
   // relations

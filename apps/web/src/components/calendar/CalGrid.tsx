@@ -17,7 +17,7 @@ export function CalGrid({ events, onClickEvent, weekDates }: CalGridProps) {
 
   return (
     <div className="flex-1 overflow-auto px-3.5 pb-3.5">
-      <div className="grid grid-cols-[44px_repeat(7,minmax(90px,1fr))] gap-[3px] mb-[3px] min-w-[540px]">
+      <div className="grid grid-cols-[32px_repeat(7,minmax(52px,1fr))] gap-[3px] mb-[3px] min-w-[400px]">
         <div />
         {DAYS_LABELS.map((label, i) => {
           const date = weekDates?.[i];
@@ -38,12 +38,12 @@ export function CalGrid({ events, onClickEvent, weekDates }: CalGridProps) {
           );
         })}
       </div>
-      <div className="grid grid-cols-[44px_repeat(7,minmax(90px,1fr))] gap-[3px] min-w-[540px]">
+      <div className="grid grid-cols-[32px_repeat(7,minmax(52px,1fr))] gap-[3px] min-w-[400px]">
         <div className="flex flex-col">
           {SLOT_LABELS.map((t) => (
             <div
               key={t}
-              className="h-[50px] flex items-start justify-end pt-0.5 pr-1.5 font-mono text-[10px] text-muted border-t border-white/[0.03]"
+              className="h-11 sm:h-[50px] flex items-start justify-end pt-0.5 pr-1 font-mono text-[9px] sm:text-[10px] text-muted border-t border-white/[0.03]"
             >
               {t}
             </div>
@@ -56,7 +56,7 @@ export function CalGrid({ events, onClickEvent, weekDates }: CalGridProps) {
               {SLOT_LABELS.map((_, slotIdx) => {
                 const ev = colEvents.find((e) => e.slotIndex === slotIdx);
                 return (
-                  <div key={slotIdx} className="h-[50px] rounded-[5px] bg-white/[0.02] relative">
+                  <div key={slotIdx} className="h-11 sm:h-[50px] rounded-[5px] bg-white/[0.02] relative">
                     {ev && (
                       <button
                         type="button"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/Button";
 import { Toggle } from "@/components/ui/Toggle";
@@ -57,9 +58,11 @@ const inputClass =
 const labelClass = "block font-mono text-[10px] font-semibold uppercase tracking-wide text-muted mb-1.5";
 
 export function SettingsClient({ initialProfile }: SettingsClientProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
   const [saving, setSaving] = useState(false);
   const [fixingProgress, setFixingProgress] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const basePreferences = initialProfile.preferences ?? {};
 
@@ -136,6 +139,26 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
       toast.error("Não foi possível recalcular o progresso");
     } finally {
       setFixingProgress(false);
+    }
+  }
+
+  async function handleResetAll() {
+    const confirmed = window.confirm(
+      "Isso apaga TODAS as matérias, módulos, grupos e sessões registradas — o calendário e o " +
+        "progresso zeram. Seu perfil e preferências continuam. Essa ação não pode ser desfeita. Continuar?"
+    );
+    if (!confirmed) return;
+
+    setResetting(true);
+    try {
+      const res = await fetch("/api/disciplines/reset", { method: "POST" });
+      if (!res.ok) throw new Error("Falha ao apagar os dados");
+      toast.success("Tudo apagado — hora de começar de novo.");
+      router.push("/onboarding");
+    } catch {
+      toast.error("Não foi possível apagar os dados");
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -219,6 +242,25 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
                 </div>
                 <Button size="sm" onClick={handleFixProgress} disabled={fixingProgress}>
                   {fixingProgress ? "Corrigindo..." : "Corrigir progresso"}
+                </Button>
+              </div>
+
+              <div className="h-px bg-border my-3.5" />
+
+              <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-danger mb-2">
+                Zona de risco
+              </div>
+              <div className="flex items-center justify-between gap-3 py-1">
+                <div>
+                  <div className="text-xs text-txt mb-0.5">Apagar tudo e recomeçar</div>
+                  <div className="text-[11px] text-muted">
+                    Remove todas as matérias, módulos, grupos e sessões registradas — útil para
+                    largar um semestre/projeto antigo e montar um plano novo do zero. Não afeta
+                    seu perfil nem suas preferências.
+                  </div>
+                </div>
+                <Button variant="danger" size="sm" onClick={handleResetAll} disabled={resetting}>
+                  {resetting ? "Apagando..." : "Apagar tudo"}
                 </Button>
               </div>
             </div>

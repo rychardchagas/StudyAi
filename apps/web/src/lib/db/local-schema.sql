@@ -12,6 +12,17 @@ CREATE TABLE IF NOT EXISTS profile (
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
+-- User-defined folders for disciplines (e.g. "Faculdade" vs. "Projeto pessoal").
+-- Deleting a group ungroups its disciplines (see deleteGroup in local-db.ts) rather than
+-- deleting them, so this has no FK from disciplines.group_id back here.
+CREATE TABLE IF NOT EXISTS discipline_groups (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  color TEXT DEFAULT '#71717A',
+  order_index INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS disciplines (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -22,6 +33,7 @@ CREATE TABLE IF NOT EXISTS disciplines (
   exam_date TEXT,
   progress INTEGER DEFAULT 0,
   fixed_schedule TEXT DEFAULT '[]', -- JSON array of { dayOfWeek, slotIndex } — recurring weekly slots (e.g. a fixed class)
+  group_id TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );

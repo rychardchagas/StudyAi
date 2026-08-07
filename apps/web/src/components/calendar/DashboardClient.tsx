@@ -193,15 +193,15 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
         </Button>
       </div>
 
-      <div className="px-4 pb-3 grid grid-cols-4 gap-2 shrink-0">
+      <div className="px-4 pb-3 grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0">
         <StatCard icon={CalendarDays} accent="secondary" value={events.length} label="sessões esta semana" />
         <StatCard icon={Clock} accent="secondary" value={`${hoursPlanned}h`} label="tempo planejado" />
         <StatCard icon={Target} accent="success" value={`${weeklyAdherence}%`} label="aderência" />
         <StatCard icon={Repeat} accent="primary" value={spacedReviews} label="revisões espaçadas" />
       </div>
 
-      <div className="flex h-[580px] overflow-hidden mx-4 mb-3.5 border border-border rounded-xl shrink-0">
-        <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex flex-col xl:flex-row xl:h-[580px] overflow-hidden mx-4 mb-3.5 border border-border rounded-xl shrink-0">
+        <div className="h-[440px] xl:h-auto flex-1 flex flex-col overflow-hidden">
           <div className="px-3.5 py-2 border-b border-border flex items-center justify-between gap-2 flex-wrap shrink-0">
             <div className="flex items-center gap-1.5">
               <button
@@ -247,7 +247,7 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
         </div>
 
         {/* AI Panel */}
-        <div className="w-[320px] shrink-0 bg-surface border-l border-border flex flex-col overflow-hidden">
+        <div className="w-full xl:w-[320px] h-[420px] xl:h-auto shrink-0 bg-surface border-t xl:border-t-0 xl:border-l border-border flex flex-col overflow-hidden">
           <div className="px-3 py-2.5 border-b border-border shrink-0">
             <div className="text-xs font-semibold text-txt">Agentes de IA</div>
             <div className="font-mono text-[9px] text-muted mt-0.5">
@@ -340,7 +340,7 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
         <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-muted mb-2">
           Seu progresso
         </div>
-        <div className="grid grid-cols-2 gap-2.5 mb-2.5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 mb-2.5">
           <div className="bg-card border border-border rounded-lg p-3">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-2 pb-1.5 border-b border-border">
               Mapa de atividade — {HEATMAP_WEEKS_BACK} semanas

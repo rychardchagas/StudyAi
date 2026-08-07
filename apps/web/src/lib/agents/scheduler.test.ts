@@ -11,6 +11,7 @@ function makeDiscipline(overrides: Partial<Discipline> & { id: string; name: str
     exam_date: null,
     progress: 0,
     fixed_schedule: [],
+    group_id: null,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
     modules: [],

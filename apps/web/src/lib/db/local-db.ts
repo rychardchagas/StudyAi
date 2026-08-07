@@ -1,7 +1,7 @@
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import fs from "fs";
 import path from "path";
-import type { Discipline, Flashcard, Module, Profile, StudySession } from "@/types";
+import type { Discipline, DisciplineGroup, Flashcard, Module, Profile, StudySession } from "@/types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "studyai.db");
@@ -38,15 +38,25 @@ function getDb(): DatabaseSync {
 
   const db = new DatabaseSync(DB_PATH);
   db.exec("PRAGMA journal_mode = WAL");
+  // Off by default in SQLite even though the schema declares ON DELETE CASCADE everywhere —
+  // without this, deleteDiscipline() leaves orphaned modules/sessions/flashcards behind.
+  db.exec("PRAGMA foreign_keys = ON");
   db.exec(fs.readFileSync(SCHEMA_PATH, "utf-8"));
   db.prepare(`INSERT OR IGNORE INTO profile (id) VALUES ('local')`).run();
 
-  // Migration: databases created before fixed_schedule existed need the column added —
+  // Migration: databases created before fixed_schedule/group_id existed need the column added —
   // CREATE TABLE IF NOT EXISTS above only helps brand-new databases.
   const disciplineColumns = toPlainArray<{ name: string }>(db.prepare(`PRAGMA table_info(disciplines)`).all());
   if (!disciplineColumns.some((c) => c.name === "fixed_schedule")) {
     db.exec(`ALTER TABLE disciplines ADD COLUMN fixed_schedule TEXT DEFAULT '[]'`);
   }
+  if (!disciplineColumns.some((c) => c.name === "group_id")) {
+    db.exec(`ALTER TABLE disciplines ADD COLUMN group_id TEXT`);
+  }
+  // Must run after the migration above, not from local-schema.sql's own CREATE INDEX — that
+  // file re-execs on every boot, and on a pre-existing DB the group_id column above wouldn't
+  // exist yet at the point schema.sql runs, so an index on it there would fail to create.
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_disciplines_group ON disciplines(group_id)`);
 
   global.__studyaiDb = db;
   return db;
@@ -74,6 +84,44 @@ export function updateProfile(updates: Partial<Profile>): Profile {
   return getProfile();
 }
 
+// --- Discipline groups ("Faculdade", "Projeto pessoal", ...) ---
+
+export function listGroups(): DisciplineGroup[] {
+  return toPlainArray<DisciplineGroup>(
+    getDb().prepare(`SELECT * FROM discipline_groups ORDER BY order_index ASC, created_at ASC`).all()
+  );
+}
+
+export function createGroup(input: { name: string; color?: string }): DisciplineGroup {
+  const db = getDb();
+  const id = newId();
+  const maxOrder = toPlain<{ m: number | null }>(
+    db.prepare(`SELECT MAX(order_index) as m FROM discipline_groups`).get()
+  ).m;
+  db.prepare(
+    `INSERT INTO discipline_groups (id, name, color, order_index) VALUES (@id, @name, @color, @order_index)`
+  ).run(bind({ id, name: input.name, color: input.color ?? "#71717A", order_index: (maxOrder ?? -1) + 1 }));
+  return toPlain<DisciplineGroup>(db.prepare(`SELECT * FROM discipline_groups WHERE id = ?`).get(id));
+}
+
+export function updateGroup(id: string, updates: Partial<DisciplineGroup>): DisciplineGroup {
+  const db = getDb();
+  const fields = Object.keys(updates).filter((k) => k !== "id");
+  if (fields.length) {
+    const assignments = fields.map((f) => `${f} = @${f}`).join(", ");
+    db.prepare(`UPDATE discipline_groups SET ${assignments} WHERE id = @id`).run(bind({ ...updates, id }));
+  }
+  return toPlain<DisciplineGroup>(db.prepare(`SELECT * FROM discipline_groups WHERE id = ?`).get(id));
+}
+
+// Ungroups its disciplines instead of deleting them — a folder disappearing should never take
+// the user's study material down with it.
+export function deleteGroup(id: string): void {
+  const db = getDb();
+  db.prepare(`UPDATE disciplines SET group_id = NULL WHERE group_id = @id`).run(bind({ id }));
+  db.prepare(`DELETE FROM discipline_groups WHERE id = ?`).run(id);
+}
+
 // --- Disciplines ---
 
 function parseDiscipline(row: Record<string, unknown>): Discipline {
@@ -93,8 +141,8 @@ export function createDiscipline(input: Partial<Discipline>): Discipline {
   const db = getDb();
   const id = newId();
   db.prepare(
-    `INSERT INTO disciplines (id, name, type, color, horas_semana, prioridade, exam_date, progress, fixed_schedule)
-     VALUES (@id, @name, @type, @color, @horas_semana, @prioridade, @exam_date, @progress, @fixed_schedule)`
+    `INSERT INTO disciplines (id, name, type, color, horas_semana, prioridade, exam_date, progress, fixed_schedule, group_id)
+     VALUES (@id, @name, @type, @color, @horas_semana, @prioridade, @exam_date, @progress, @fixed_schedule, @group_id)`
   ).run(
     bind({
       id,
@@ -106,6 +154,7 @@ export function createDiscipline(input: Partial<Discipline>): Discipline {
       exam_date: input.exam_date ?? null,
       progress: input.progress ?? 0,
       fixed_schedule: JSON.stringify(input.fixed_schedule ?? []),
+      group_id: input.group_id ?? null,
     })
   );
   return parseDiscipline(toPlain(db.prepare(`SELECT * FROM disciplines WHERE id = ?`).get(id)));
@@ -145,6 +194,24 @@ export function recalculateAllProgress(): { updated: number; total: number } {
     }
   }
   return { updated, total: disciplines.length };
+}
+
+// Wipes every discipline, module, session, flashcard, and group — a deliberate "start over"
+// action, not a soft-delete. Leaves `profile` (name/bio/preferences) untouched, since resetting
+// study content isn't the same as resetting who the user is or their notification/schedule prefs.
+export function resetAllData(): { disciplines: number; modules: number; sessions: number } {
+  const db = getDb();
+  const counts = {
+    disciplines: (toPlain<{ c: number }>(db.prepare(`SELECT COUNT(*) as c FROM disciplines`).get())).c,
+    modules: (toPlain<{ c: number }>(db.prepare(`SELECT COUNT(*) as c FROM modules`).get())).c,
+    sessions: (toPlain<{ c: number }>(db.prepare(`SELECT COUNT(*) as c FROM study_sessions`).get())).c,
+  };
+  db.exec("DELETE FROM flashcards");
+  db.exec("DELETE FROM study_sessions");
+  db.exec("DELETE FROM modules");
+  db.exec("DELETE FROM disciplines");
+  db.exec("DELETE FROM discipline_groups");
+  return counts;
 }
 
 // --- Modules ---

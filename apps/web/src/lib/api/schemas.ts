@@ -22,6 +22,7 @@ export const disciplineCreateSchema = z
     exam_date: z.string().nullable().optional(),
     progress: z.number().int().min(0).max(100).optional(),
     fixed_schedule: z.array(fixedSlotSchema).optional(),
+    group_id: z.string().min(1).nullable().optional(),
     modules: z
       .array(
         z.object({
@@ -46,6 +47,28 @@ export const disciplinePatchSchema = z
     exam_date: z.string().nullable().optional(),
     progress: z.number().int().min(0).max(100).optional(),
     fixed_schedule: z.array(fixedSlotSchema).optional(),
+    group_id: z.string().min(1).nullable().optional(),
+  })
+  .strict();
+
+export const groupCreateSchema = z
+  .object({
+    name: z.string().min(1).max(100),
+    color: z
+      .string()
+      .regex(/^#[0-9A-Fa-f]{6}$/)
+      .optional(),
+  })
+  .strict();
+
+export const groupPatchSchema = z
+  .object({
+    name: z.string().min(1).max(100).optional(),
+    color: z
+      .string()
+      .regex(/^#[0-9A-Fa-f]{6}$/)
+      .optional(),
+    order_index: z.number().int().min(0).optional(),
   })
   .strict();
 

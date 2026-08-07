@@ -122,14 +122,14 @@ export function ProgressClient({ initialDisciplines, initialSessions }: Progress
     <div className="flex-1 overflow-y-auto p-6">
       <ProgressHeader period={period} onPeriodChange={setPeriod} />
 
-      <div className="grid grid-cols-4 gap-2 mb-3.5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3.5">
         <StatCard icon={Flame} accent="primary" value={streak} label="dias consecutivos" />
         <StatCard icon={BookOpen} accent="secondary" value={`${totalHours}h`} label="total do período" />
         <StatCard icon={Target} accent="success" value={`${adherence}%`} label="aderência geral" />
         <StatCard icon={Brain} accent="primary" value={reviewsDone} label="revisões feitas" />
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 mb-2.5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 mb-2.5">
         <div className="bg-card border border-border rounded-lg p-3">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-2 pb-1.5 border-b border-border">
             Mapa de atividade — {WEEKS_BACK} semanas
