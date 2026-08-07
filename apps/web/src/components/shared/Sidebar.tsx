@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Calendar, Clock, TrendingUp, BookOpen, FlaskConical, Settings, Flame, HelpCircle, Bot, type LucideIcon } from "lucide-react";
@@ -25,9 +25,30 @@ const CONFIG_ITEMS: Array<{ Icon: LucideIcon; label: string; href: string }> = [
   { Icon: HelpCircle, label: "Como usar", href: "/help" },
 ];
 
+// Below this width, the fixed 250px sidebar was eating too much of the screen before the
+// calendar grid got any room — auto-collapse to the 52px icon rail instead, still fully
+// expandable by hand (the manual toggle then wins over this until the tab reloads).
+const AUTO_COLLAPSE_BREAKPOINT = 1024;
+
 export function Sidebar({ disciplines, streakDays, last7Days }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const manualOverride = useRef(false);
   const pathname = usePathname();
+
+  useEffect(() => {
+    function syncToViewport() {
+      if (manualOverride.current) return;
+      setCollapsed(window.innerWidth < AUTO_COLLAPSE_BREAKPOINT);
+    }
+    syncToViewport();
+    window.addEventListener("resize", syncToViewport);
+    return () => window.removeEventListener("resize", syncToViewport);
+  }, []);
+
+  function toggleCollapsed() {
+    manualOverride.current = true;
+    setCollapsed((p) => !p);
+  }
 
   function NavItem({ Icon, label, href }: { Icon: LucideIcon; label: string; href: string }) {
     const active = pathname === href;
@@ -73,7 +94,7 @@ export function Sidebar({ disciplines, streakDays, last7Days }: SidebarProps) {
         </div>
 
         <button
-          onClick={() => setCollapsed((p) => !p)}
+          onClick={toggleCollapsed}
           title={collapsed ? "Expandir sidebar" : "Recolher sidebar"}
           className="flex items-center justify-center py-1.5 border-b border-border text-muted cursor-pointer text-xs shrink-0 w-full hover:text-dim transition-colors"
         >

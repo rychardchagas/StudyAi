@@ -196,7 +196,8 @@ export function generateCalendar(
       allCovered ? "done" : mod?.status ?? "pend",
       daysToExam,
       sc,
-      mod ? { lapses: mod.fsrs_lapses, reps: mod.fsrs_reps } : undefined
+      mod ? { lapses: mod.fsrs_lapses, reps: mod.fsrs_reps } : undefined,
+      mod?.topics?.length ?? 0
     );
     const isReview = allCovered || (sc % 3 === 2 && done.length > 0);
 

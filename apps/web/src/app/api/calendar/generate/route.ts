@@ -44,8 +44,13 @@ Apply these rules, in order of precedence:
    started it in a session but marked "não terminei" (didn't finish). Give it EVERY session slot
    for that discipline this week (not just some), ahead of any "pend" module, until the student
    marks it done — the student explicitly asked to come back to the same thing, not move on.
-   Methodology: Active Recall (or Feynman occasionally, to vary it).
-6. For modules with status "pend" → schedule Prática Deliberada.
+   Methodology: mostly Active Recall, occasionally Feynman to vary it, and on roughly every 4th
+   session on the same module use Aprendizagem por Problemas (apply it to a realistic problem/
+   case) — that fits best once there's some grounding to apply, which "prog" already implies.
+6. For modules with status "pend" (genuinely new material): if the module's "topics" array has
+   4 or more entries (a lot of interrelated subtopics to organize), use Mapas Mentais to build
+   that structure before drilling — otherwise Prática Deliberada. Don't default to Mapas Mentais
+   for modules with few/no topics; it's specifically for the "many interconnected concepts" case.
 7. If student context is present, let it override a borderline call between two reasonable
    methodologies — it's a direct signal from the student about what they need, weigh it seriously.
 
@@ -60,7 +65,7 @@ Return ONLY valid JSON in this format:
       "moduleName": "string",
       "dayOfWeek": 0-6,
       "slotIndex": 0-15,
-      "methodology": "Repetição Espaçada|Active Recall|Prática Deliberada|Interleaving",
+      "methodology": "Repetição Espaçada|Active Recall|Prática Deliberada|Interleaving|Feynman|Mapas Mentais|Aprendizagem por Problemas",
       "durationMinutes": 45
     }
   ]

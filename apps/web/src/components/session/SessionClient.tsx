@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { useTimer } from "@/lib/hooks/useTimer";
+import { usePomodoro } from "@/lib/hooks/usePomodoro";
 import { Button } from "@/components/ui/Button";
 import { Tip } from "@/components/ui/Tip";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -56,6 +57,32 @@ export function SessionClient() {
   const durationMinutes = Number(duration) || 45;
   const initialSeconds = Number(duration) * 60 || 45 * 60;
   const timer = useTimer(initialSeconds);
+  const pomodoro = usePomodoro();
+  const [pomodoroMode, setPomodoroMode] = useState(false);
+  // Timeboxing is a structural technique independent of which content methodology the session
+  // uses (see Methodology in lib/agents/pedagogy.ts) — this lets the plain countdown and the
+  // 25/5 work/break cycle share the same ring/controls in the JSX below instead of duplicating it.
+  const activeTimer = pomodoroMode
+    ? {
+        seconds: pomodoro.seconds,
+        running: pomodoro.running,
+        progress: pomodoro.progress,
+        toggle: pomodoro.toggle,
+        reset: pomodoro.reset,
+        skip: pomodoro.reset,
+        fmt: pomodoro.fmt,
+        completed: false,
+      }
+    : timer;
+
+  useEffect(() => {
+    if (!pomodoro.justTransitioned) return;
+    toast(pomodoro.justTransitioned === "break" ? "🍅 Pomodoro concluído — hora da pausa!" : "☕ Pausa acabou — volta pro foco.", {
+      icon: pomodoro.justTransitioned === "break" ? "☕" : "🍅",
+    });
+    pomodoro.clearTransition();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pomodoro.justTransitioned]);
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [focusMode, setFocusMode] = useState(false);
@@ -167,7 +194,8 @@ export function SessionClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Notify when the timer runs out.
+  // Notify when the plain countdown runs out (doesn't apply in Pomodoro mode, which has its own
+  // work/break transition toasts above).
   useEffect(() => {
     if (timer.completed) {
       toast("Tempo esgotado! Revise seu progresso e conclua a sessão.", { icon: "⏰" });
@@ -182,7 +210,7 @@ export function SessionClient() {
       if (e.ctrlKey || e.metaKey || e.altKey) return; // don't hijack browser shortcuts (e.g. Ctrl+F find)
       if (e.key === " ") {
         e.preventDefault();
-        timer.toggle();
+        activeTimer.toggle();
       }
       if (e.key === "Escape") setFocusMode(false);
       if (e.key === "ArrowRight") {
@@ -194,7 +222,7 @@ export function SessionClient() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timer.toggle, recallQuestions.length]);
+  }, [activeTimer.toggle, recallQuestions.length]);
 
   if (!disciplineId) {
     return (
@@ -311,13 +339,15 @@ export function SessionClient() {
     }
   };
 
+  const timerLabel = pomodoroMode && pomodoro.phase === "break" ? "pausa" : activeTimer.running ? "foco" : "pausado";
+
   const ringRadius = 58;
   const circumference = 2 * Math.PI * ringRadius;
-  const dashOffset = circumference * (1 - timer.progress);
+  const dashOffset = circumference * (1 - activeTimer.progress);
 
   const focusRadius = 88;
   const focusCircumference = 2 * Math.PI * focusRadius;
-  const focusDashOffset = focusCircumference * (1 - timer.progress);
+  const focusDashOffset = focusCircumference * (1 - activeTimer.progress);
 
   return (
     <div className="relative flex-1 overflow-y-auto p-6">
@@ -377,36 +407,36 @@ export function SessionClient() {
                 strokeDasharray={focusCircumference}
                 strokeDashoffset={focusDashOffset}
                 style={{ transition: "stroke-dashoffset .5s ease" }}
-                className={timer.running ? "drop-shadow-[0_0_8px_#3B82F6]" : ""}
+                className={activeTimer.running ? "drop-shadow-[0_0_8px_#3B82F6]" : ""}
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <div className="font-mono text-[42px] font-light leading-none text-txt">
-                {timer.fmt(timer.seconds)}
+                {activeTimer.fmt(activeTimer.seconds)}
               </div>
               <div className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted">
-                {timer.running ? "foco" : "pausado"}
+                {timerLabel}
               </div>
             </div>
           </div>
           <div className="flex gap-3">
             <button
-              onClick={timer.reset}
+              onClick={activeTimer.reset}
               className="flex h-[42px] w-[42px] items-center justify-center rounded-xl border border-border bg-card text-dim"
             >
               ↺
             </button>
             <button
-              onClick={timer.toggle}
+              onClick={activeTimer.toggle}
               className={cn(
                 "flex h-[58px] w-[58px] items-center justify-center rounded-2xl text-2xl transition-all",
-                timer.running ? "border border-danger bg-danger/15 text-danger" : "bg-primary text-bg"
+                activeTimer.running ? "border border-danger bg-danger/15 text-danger" : "bg-primary text-bg"
               )}
             >
-              {timer.running ? "⏸" : "▶"}
+              {activeTimer.running ? "⏸" : "▶"}
             </button>
             <button
-              onClick={timer.skip}
+              onClick={activeTimer.skip}
               className="flex h-[42px] w-[42px] items-center justify-center rounded-xl border border-border bg-card text-dim"
             >
               ⏭
@@ -456,40 +486,61 @@ export function SessionClient() {
                   strokeDasharray={circumference}
                   strokeDashoffset={dashOffset}
                   style={{ transition: "stroke-dashoffset .5s ease" }}
-                  className={timer.running ? "drop-shadow-[0_0_5px_#3B82F6]" : ""}
+                  className={activeTimer.running ? "drop-shadow-[0_0_5px_#3B82F6]" : ""}
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <div className="font-mono text-[28px] font-normal leading-none text-txt">
-                  {timer.fmt(timer.seconds)}
+                  {activeTimer.fmt(activeTimer.seconds)}
                 </div>
                 <div className="mt-1 font-mono text-[9px] uppercase tracking-wide text-muted">
-                  {timer.running ? "foco" : "pausado"}
+                  {timerLabel}
                 </div>
               </div>
             </div>
             <div className="relative mb-3 flex justify-center gap-2">
               <button
-                onClick={timer.reset}
+                onClick={activeTimer.reset}
                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card2 text-dim"
               >
                 ↺
               </button>
               <button
-                onClick={timer.toggle}
+                onClick={activeTimer.toggle}
                 className={cn(
                   "flex h-[42px] w-[42px] items-center justify-center rounded-xl text-base transition-all",
-                  timer.running ? "border border-danger bg-danger/15 text-danger" : "bg-primary text-bg"
+                  activeTimer.running ? "border border-danger bg-danger/15 text-danger" : "bg-primary text-bg"
                 )}
               >
-                {timer.running ? "⏸" : "▶"}
+                {activeTimer.running ? "⏸" : "▶"}
               </button>
               <button
-                onClick={timer.skip}
+                onClick={activeTimer.skip}
                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card2 text-dim"
               >
                 ⏭
               </button>
+            </div>
+            <div className="relative mb-2.5 flex items-center justify-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!pomodoroMode) pomodoro.reset();
+                  setPomodoroMode((p) => !p);
+                }}
+                title="Blocos de 25min de foco com 5min de pausa — técnica de timeboxing, complementa a metodologia da sessão"
+                className={cn(
+                  "rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold transition-colors cursor-pointer",
+                  pomodoroMode ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-card2 text-dim hover:text-txt"
+                )}
+              >
+                🍅 Modo Pomodoro {pomodoroMode ? "ativo" : ""}
+              </button>
+              {pomodoroMode && pomodoro.cyclesCompleted > 0 && (
+                <span className="font-mono text-[10px] text-muted">
+                  {pomodoro.cyclesCompleted} {pomodoro.cyclesCompleted === 1 ? "ciclo" : "ciclos"}
+                </span>
+              )}
             </div>
             <div className="relative mb-2.5">
               <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">

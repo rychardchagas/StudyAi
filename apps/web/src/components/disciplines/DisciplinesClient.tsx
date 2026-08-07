@@ -41,7 +41,13 @@ function pickStudyModule(modules: Module[]): Module | undefined {
 
 function buildSessionHref(d: Discipline, modules: Module[]): string {
   const mod = pickStudyModule(modules);
-  const methodology = selectMethodology(mod?.status ?? "pend", daysUntil(nearestEvaluationDate(d)), 0);
+  const methodology = selectMethodology(
+    mod?.status ?? "pend",
+    daysUntil(nearestEvaluationDate(d)),
+    0,
+    undefined,
+    mod?.topics?.length ?? 0
+  );
   const params = new URLSearchParams({
     disciplineId: d.id,
     moduleId: mod?.id ?? "",
