@@ -162,7 +162,7 @@ export function OnboardingClient() {
       await fetch("/api/calendar/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ disciplines: created, availability }),
+        body: JSON.stringify({ disciplines: created, availability, studentContext: bio.trim() || undefined }),
       });
     } catch (error) {
       console.error("Calendar generation failed", error);

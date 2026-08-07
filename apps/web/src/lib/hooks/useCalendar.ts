@@ -11,7 +11,7 @@ export function useCalendar(initialDisciplines: Discipline[], initialAvailabilit
   const [generating, setGenerating] = useState(false);
 
   const regenerate = useCallback(
-    async (discs: Discipline[], avail?: Record<number, number[]>) => {
+    async (discs: Discipline[], avail?: Record<number, number[]>, studentContext?: string) => {
       setGenerating(true);
       let usedAI = false;
       let qaIssues: string[] = [];
@@ -20,7 +20,7 @@ export function useCalendar(initialDisciplines: Discipline[], initialAvailabilit
         const res = await fetch("/api/calendar/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ disciplines: discs, availability: avail }),
+          body: JSON.stringify({ disciplines: discs, availability: avail, studentContext }),
         });
         if (res.ok) {
           const data = await res.json();

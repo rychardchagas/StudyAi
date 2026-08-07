@@ -23,7 +23,16 @@ function pickModuleForSession(disc: Discipline, sc: number) {
   const inProg = mods.find((m) => m.status === "prog");
   const pend = mods.filter((m) => m.status === "pend");
   const done = mods.filter((m) => m.status === "done");
-  return sc % 3 === 2 && done.length ? done[sc % done.length] : inProg ?? pend[sc % pend.length] ?? done[0];
+  if (sc % 3 === 2 && done.length) {
+    // Real spaced-repetition due date (lib/utils/fsrs.ts::scheduleCard, wired in
+    // sessions/complete) beats the rotation whenever something is actually due — a module you
+    // just aced two weeks ago and one you're overdue on shouldn't get the same review slot.
+    const now = Date.now();
+    const due = done.filter((m) => m.fsrs_due_date && new Date(m.fsrs_due_date).getTime() <= now);
+    if (due.length) return due[sc % due.length];
+    return done[sc % done.length]; // nothing's due yet — keep the rotation so review slots aren't wasted
+  }
+  return inProg ?? pend[sc % pend.length] ?? done[0];
 }
 
 export function generateCalendar(
@@ -126,7 +135,12 @@ export function generateCalendar(
       ? Math.max(0, Math.ceil((new Date(disc.exam_date).getTime() - Date.now()) / 86400000))
       : null;
 
-    const methodology = selectMethodology(mod?.status ?? "pend", daysToExam, sc);
+    const methodology = selectMethodology(
+      mod?.status ?? "pend",
+      daysToExam,
+      sc,
+      mod ? { lapses: mod.fsrs_lapses, reps: mod.fsrs_reps } : undefined
+    );
     const isReview = sc % 3 === 2 && done.length > 0;
 
     events.push({

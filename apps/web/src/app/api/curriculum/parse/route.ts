@@ -3,6 +3,7 @@ import pdfParse from "pdf-parse";
 import type { ParsedModule } from "@/lib/agents/curriculum";
 import { describeLlmError } from "@/lib/agents/llm-error";
 import { llm, LLM_MODEL } from "@/lib/agents/llm-client";
+import { extractJson } from "@/lib/agents/extract-json";
 
 async function extractText(file: File): Promise<string> {
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -46,8 +47,13 @@ Return ONLY JSON array:
     });
 
     const raw = response.choices[0]?.message?.content ?? "[]";
-    const clean = raw.replace(/```json|```/g, "").trim();
-    const modules: ParsedModule[] = JSON.parse(clean);
+    let modules: ParsedModule[];
+    try {
+      modules = JSON.parse(extractJson(raw));
+    } catch (parseError) {
+      console.error("Curriculum parse: could not extract JSON from model output:", raw);
+      throw parseError;
+    }
 
     return NextResponse.json({ modules });
   } catch (error) {

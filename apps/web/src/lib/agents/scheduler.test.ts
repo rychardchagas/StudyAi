@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateCalendar } from "./scheduler";
-import type { Discipline } from "@/types";
+import type { Discipline, Module } from "@/types";
 
 function makeDiscipline(overrides: Partial<Discipline> & { id: string; name: string }): Discipline {
   return {
@@ -15,6 +15,23 @@ function makeDiscipline(overrides: Partial<Discipline> & { id: string; name: str
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
     modules: [],
+    ...overrides,
+  };
+}
+
+function makeModule(overrides: Partial<Module> & { id: string; name: string; status: Module["status"] }): Module {
+  return {
+    discipline_id: "unused",
+    estimated_hours: 4,
+    order_index: 0,
+    fsrs_stability: 0,
+    fsrs_difficulty: 0,
+    fsrs_due_date: null,
+    fsrs_reps: 0,
+    fsrs_lapses: 0,
+    fsrs_state: "new",
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -54,5 +71,44 @@ describe("generateCalendar distribution", () => {
     for (let i = 1; i < events.length; i++) {
       expect(events[i].disciplineId).not.toBe(events[i - 1].disciplineId);
     }
+  });
+
+  it("prioritizes a module whose real FSRS due date has passed over ones not due yet", () => {
+    const past = new Date(Date.now() - 86400000).toISOString();
+    const future = new Date(Date.now() + 30 * 86400000).toISOString();
+    // Due module deliberately isn't done[0] — the old rotation-only logic would only reach it
+    // by luck of the `sc % done.length` cycle, not because it's actually due.
+    const notDue1 = makeModule({ id: "not-due-1", name: "Not due 1", status: "done", fsrs_due_date: future });
+    const notDue2 = makeModule({ id: "not-due-2", name: "Not due 2", status: "done", fsrs_due_date: future });
+    const due = makeModule({ id: "due", name: "Actually due", status: "done", fsrs_due_date: past });
+    const notDue3 = makeModule({ id: "not-due-3", name: "Not due 3", status: "done", fsrs_due_date: future });
+    const disc = makeDiscipline({
+      id: "d", name: "Single Discipline", horas_semana: 10, prioridade: "Alta",
+      modules: [notDue1, notDue2, due, notDue3],
+    });
+    const availability = { 0: [1, 2, 3, 4, 5, 6], 1: [1, 2, 3, 4, 5, 6] };
+
+    const events = generateCalendar([disc], availability);
+    const reviewEvents = events.filter((e) => e.moduleName.startsWith("🔁 Revisão"));
+    expect(reviewEvents.length).toBeGreaterThan(1); // need more than one sample for this to mean anything
+    expect(reviewEvents.every((e) => e.moduleId === "due")).toBe(true);
+  });
+
+  it("uses Prática Deliberada instead of Repetição Espaçada for a module with a high FSRS lapse rate", () => {
+    const past = new Date(Date.now() - 86400000).toISOString();
+    // 3 lapses out of 5 reps — above the 0.4 struggling threshold in selectMethodology().
+    const struggling = makeModule({
+      id: "struggling", name: "Struggling module", status: "done",
+      fsrs_due_date: past, fsrs_reps: 5, fsrs_lapses: 3,
+    });
+    const disc = makeDiscipline({
+      id: "d", name: "Single Discipline", horas_semana: 10, prioridade: "Alta", modules: [struggling],
+    });
+    const availability = { 0: [1, 2, 3, 4, 5, 6], 1: [1, 2, 3, 4, 5, 6] };
+
+    const events = generateCalendar([disc], availability);
+    expect(events.length).toBeGreaterThan(0);
+    expect(events.every((e) => e.methodology === "Prática Deliberada")).toBe(true);
+    expect(events.some((e) => e.methodology === "Repetição Espaçada")).toBe(false);
   });
 });

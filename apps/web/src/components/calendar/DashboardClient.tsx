@@ -137,18 +137,23 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
 
   async function handleRegenerate() {
     let availability = initialAvailability;
+    let studentContext: string | undefined;
     try {
       const profile = await fetch("/api/profile").then((r) => r.json());
       availability = toAvailabilityRecord(profile?.preferences?.availability) ?? availability;
+      // Whatever the student actually told the AI about themselves (onboarding bio, or the
+      // dedicated context field) — lets the calendar prompt weigh a stated need/preference
+      // instead of only looking at module status and FSRS numbers.
+      studentContext = profile?.context || profile?.bio || undefined;
     } catch {
       // fall through with the availability we already have — regenerate() still works with it
     }
 
-    const { usedAI, qaIssues } = await regenerate(disciplines, availability);
+    const { usedAI, qaIssues } = await regenerate(disciplines, availability, studentContext);
     if (usedAI) {
       toast.success("Calendário replanejado com IA!");
     } else {
-      toast("Calendário atualizado localmente — IA indisponível (verifique a chave/crédito da Anthropic).", {
+      toast("Calendário atualizado localmente — IA indisponível (verifique se o Ollama está rodando).", {
         icon: "⚠️",
       });
     }
