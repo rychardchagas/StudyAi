@@ -21,7 +21,19 @@ interface AgentInfo {
   usesLlm: boolean;
   status: "ativo" | "planejado";
   description: string;
+  // "ativo" (todos, exceto o planejado) não significa "responde quando você pede algo no chat" —
+  // só o Orchestrator tem tool-calling de verdade. Os outros rodam automaticamente dentro do
+  // próprio fluxo do app (upload de ementa, geração de calendário, tela de Progresso) e não têm
+  // como ser acionados por um pedido livre em texto. Ver a lista de ferramentas reais do
+  // Orchestrator em lib/agents/tools.ts se precisar saber exatamente o que "chat" cobre.
+  callable: "chat" | "upload" | "automatico";
 }
+
+const CALLABLE_LABEL: Record<AgentInfo["callable"], string> = {
+  chat: "responde no chat",
+  upload: "só via upload",
+  automatico: "automático, não é chamável",
+};
 
 const AGENTS: AgentInfo[] = [
   {
@@ -31,6 +43,7 @@ const AGENTS: AgentInfo[] = [
     usesLlm: true,
     status: "ativo",
     description: "Assistente de chat do Dashboard — interpreta pedidos e usa ferramentas (tool-calling) pra de fato adicionar/editar matérias e módulos, fixar horário e mudar disponibilidade.",
+    callable: "chat",
   },
   {
     Icon: FileText,
@@ -39,6 +52,7 @@ const AGENTS: AgentInfo[] = [
     usesLlm: true,
     status: "ativo",
     description: "Extrai módulos de uma ementa em PDF/texto enviada na tela Matérias.",
+    callable: "upload",
   },
   {
     Icon: Brain,
@@ -47,6 +61,7 @@ const AGENTS: AgentInfo[] = [
     usesLlm: false,
     status: "ativo",
     description: "Escolhe a metodologia de cada sessão (Repetição Espaçada, Active Recall, Prática Deliberada) a partir do status do módulo e da proximidade da prova — lógica local, sem IA.",
+    callable: "automatico",
   },
   {
     Icon: CalendarClock,
@@ -55,6 +70,7 @@ const AGENTS: AgentInfo[] = [
     usesLlm: false,
     status: "ativo",
     description: "Motor local que distribui sessões pelos horários livres por peso/prioridade — roda sempre, é o fallback automático quando a IA está indisponível.",
+    callable: "automatico",
   },
   {
     Icon: TrendingUp,
@@ -63,6 +79,7 @@ const AGENTS: AgentInfo[] = [
     usesLlm: false,
     status: "ativo",
     description: "Calcula aderência semanal, streak e revisões pendentes a partir do histórico real de sessões — lógica local.",
+    callable: "automatico",
   },
   {
     Icon: ShieldCheck,
@@ -71,6 +88,7 @@ const AGENTS: AgentInfo[] = [
     usesLlm: false,
     status: "ativo",
     description: "Valida o calendário gerado via IA (interleaving, conflito de horário fixo, prova sem sessão) e retorna avisos — não roda sobre o motor local.",
+    callable: "automatico",
   },
   {
     Icon: Bell,
@@ -79,6 +97,7 @@ const AGENTS: AgentInfo[] = [
     usesLlm: false,
     status: "planejado",
     description: "Os toggles existem em Configurações → Notificações, mas nenhum envio real está implementado ainda.",
+    callable: "automatico",
   },
 ];
 
@@ -228,7 +247,14 @@ export function AgentsStatusClient() {
 
         {/* Agent roster */}
         <section className="bg-card border border-border rounded-xl p-4">
-          <h2 className="text-sm font-bold text-txt mb-3">Agentes do sistema</h2>
+          <h2 className="text-sm font-bold text-txt mb-1">Agentes do sistema</h2>
+          <p className="text-[11px] text-muted leading-relaxed mb-3">
+            &ldquo;Ativo&rdquo; quer dizer que o agente roda de verdade — não que ele atende qualquer pedido
+            seu no chat. Só o <strong className="text-dim">Orchestrator</strong> tem tool-calling
+            (7 ações reais: cadastrar/editar/remover matéria, adicionar módulo, mudar status,
+            fixar horário, mudar disponibilidade). Os outros rodam automaticamente dentro do
+            próprio fluxo do app — veja o selo de cada um abaixo.
+          </p>
           <div className="flex flex-col gap-2.5">
             {AGENTS.map((agent) => (
               <div key={agent.name} className="flex items-start gap-3 bg-card2 border border-border rounded-lg p-3">
@@ -249,6 +275,13 @@ export function AgentsStatusClient() {
                       }`}
                     >
                       {agent.usesLlm ? "usa LLM" : "local, sem IA"}
+                    </span>
+                    <span
+                      className={`font-mono text-[9px] px-1.5 py-0.5 rounded ${
+                        agent.callable === "chat" ? "bg-primary/15 text-primary" : "bg-card text-muted"
+                      }`}
+                    >
+                      {CALLABLE_LABEL[agent.callable]}
                     </span>
                   </div>
                   <div className="text-[11px] text-dim leading-relaxed">{agent.description}</div>

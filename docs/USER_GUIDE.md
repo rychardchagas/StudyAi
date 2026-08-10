@@ -247,6 +247,22 @@ Scheduler, Progress), versus os que realmente dependem de um LLM (Orchestrator, 
 essa tela, não os toggles de Configurações, quando quiser saber se um agente está "ativo" de
 verdade.
 
+**"Ativo" não quer dizer "responde ao que você pede no chat"** — é uma confusão fácil de fazer
+olhando a lista. Só o **Orchestrator** tem tool-calling de verdade, e só pra 7 ações específicas:
+cadastrar/editar/remover uma matéria, adicionar um módulo, mudar o status de um módulo, fixar um
+horário, e mudar disponibilidade. Peça uma dessas 7 no chat ("marca terça às 19h como indisponível",
+"adiciona uma matéria de Cálculo com 4h/semana") e o Orchestrator executa de verdade.
+
+O que **não** dá pra pedir no chat, mesmo com os outros agentes marcados "ativo":
+- **Curriculum Agent** só roda quando você faz upload de um PDF/texto de ementa na tela Matérias —
+  não tem como processar uma ementa só descrevendo ela no chat.
+- **Pedagogy Agent** e **Scheduler Agent** rodam automaticamente dentro da geração do calendário —
+  não são acionáveis por um pedido isolado.
+- **Progress Agent** só calcula quando você abre `/progress` ou o Dashboard.
+- **QA Agent** só valida quando o motor via IA gera um calendário (clique em "⚡ Replanejar").
+- **Replanejar o calendário em si não é uma das 7 ações** — mesmo pedindo no chat, ainda precisa
+  clicar no botão "⚡ Replanejar" pra disparar isso de verdade.
+
 ## O que ainda não faz o que parece fazer (para você não estranhar)
 
 - **Notificações** (lembrete de sessão, relatório semanal, revisão atrasada, streak em risco,
