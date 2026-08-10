@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { ActivityHeatmap } from "@/components/shared/ActivityHeatmap";
 import { InsightsList } from "@/components/shared/InsightsList";
 import { Button } from "@/components/ui/Button";
-import { calcWeeklyAdherence, calcStreakDays, generateInsights, calcDisciplinePace, type PaceStatus } from "@/lib/agents/progress";
+import { calcWeeklyAdherence, calcStreakDays, generateInsights, calcDisciplinePace, calcGamification, type PaceStatus } from "@/lib/agents/progress";
 import type { Discipline, StudySession } from "@/types";
 
 const PACE_STYLES: Record<PaceStatus, { label: string; className: string }> = {
@@ -85,6 +85,14 @@ export function ProgressClient({ initialDisciplines, initialSessions }: Progress
 
   const streak = calcStreakDays(initialSessions);
   const adherence = calcWeeklyAdherence(initialSessions);
+  const adherenceDelta = useMemo(() => {
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    return adherence - calcWeeklyAdherence(initialSessions, oneWeekAgo);
+  }, [initialSessions, adherence]);
+  // All-time, not period-scoped like the stat cards below — a level is a persistent achievement,
+  // it shouldn't reset to 0 just because the dropdown is set to "Últimas 4 semanas".
+  const gamification = useMemo(() => calcGamification(initialSessions), [initialSessions]);
 
   const totalHours = useMemo(() => {
     const minutes = completedSessions.reduce((sum, s) => sum + (s.duration_minutes ?? 0), 0);
@@ -134,10 +142,45 @@ export function ProgressClient({ initialDisciplines, initialSessions }: Progress
     <div className="flex-1 overflow-y-auto p-6">
       <ProgressHeader period={period} onPeriodChange={setPeriod} />
 
+      <div className="relative overflow-hidden rounded-lg border border-primary/25 bg-card p-3 mb-3.5">
+        <div className="pointer-events-none absolute -top-8 -left-8 h-28 w-28 rounded-full bg-primary/10 blur-2xl" />
+        <div className="relative flex items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-primary bg-primary/15 font-mono text-base font-bold text-primary">
+            {gamification.level}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-xs font-semibold text-txt">Nível {gamification.level}</span>
+              <span className="font-mono text-[10px] text-muted shrink-0">
+                {gamification.xpIntoLevel} / {gamification.xpForNextLevel} XP
+              </span>
+            </div>
+            <div className="mt-1 h-[6px] w-full overflow-hidden rounded-full bg-card2">
+              <div
+                className="h-[6px] rounded-full bg-primary transition-all duration-500"
+                style={{ width: `${Math.round(gamification.progressToNextLevel * 100)}%` }}
+              />
+            </div>
+          </div>
+          <div className="hidden shrink-0 items-center gap-1 rounded-full border border-border bg-card2 px-2.5 py-1 sm:flex">
+            <span className="text-xs">🔥</span>
+            <span className="font-mono text-[11px] font-semibold text-txt">{streak}</span>
+            <span className="text-[10px] text-muted">dias</span>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3.5">
         <StatCard icon={Flame} accent="primary" value={streak} label="dias consecutivos" />
         <StatCard icon={BookOpen} accent="secondary" value={`${totalHours}h`} label="total do período" />
-        <StatCard icon={Target} accent="success" value={`${adherence}%`} label="aderência geral" />
+        <StatCard
+          icon={Target}
+          accent="success"
+          value={`${adherence}%`}
+          label="aderência geral"
+          delta={adherenceDelta !== 0 ? `${adherenceDelta > 0 ? "+" : ""}${adherenceDelta}% sem.` : undefined}
+          deltaDir={adherenceDelta > 0 ? "up" : adherenceDelta < 0 ? "dn" : "neu"}
+        />
         <StatCard icon={Brain} accent="primary" value={reviewsDone} label="revisões feitas" />
       </div>
 
@@ -177,25 +220,44 @@ export function ProgressClient({ initialDisciplines, initialSessions }: Progress
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-lg p-3 mb-2.5">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-2 pb-1.5 border-b border-border">
+      <div className="mb-2.5">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-2">
           Guia de progresso — está no prazo?
         </div>
-        <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           {paces.map(({ discipline, pace }) => (
-            <div key={discipline.id} className="flex items-center gap-2.5">
-              <div className="w-1.5 h-1.5 rounded-sm shrink-0" style={{ background: discipline.color }} />
-              <span className="text-[11px] text-dim w-[110px] shrink-0 overflow-hidden text-ellipsis whitespace-nowrap">
-                {discipline.name}
-              </span>
-              <span
-                className={`font-mono text-[9px] font-semibold uppercase tracking-wide rounded px-1.5 py-0.5 border shrink-0 ${PACE_STYLES[pace.status].className}`}
-              >
-                {PACE_STYLES[pace.status].label}
-              </span>
-              <span className="text-[11px] text-muted flex-1 min-w-0 truncate" title={pace.detail}>
-                {pace.detail}
-              </span>
+            <div key={discipline.id} className="bg-card border border-border rounded-lg p-3 flex flex-col gap-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <div className="w-1.5 h-1.5 rounded-sm shrink-0" style={{ background: discipline.color }} />
+                  <span className="text-xs font-semibold text-txt truncate">{discipline.name}</span>
+                </div>
+                <span
+                  className={`font-mono text-[9px] font-semibold uppercase tracking-wide rounded px-1.5 py-0.5 border shrink-0 ${PACE_STYLES[pace.status].className}`}
+                >
+                  {PACE_STYLES[pace.status].label}
+                </span>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] text-muted">Concluído</span>
+                  <span className="font-mono text-[10px] font-semibold text-txt">{pace.actualProgress}%</span>
+                </div>
+                <div className="relative h-[5px] w-full overflow-hidden rounded-full bg-card2">
+                  <div
+                    className="h-[5px] rounded-full transition-all duration-500"
+                    style={{ background: discipline.color, width: `${pace.actualProgress}%` }}
+                  />
+                  {pace.expectedProgress !== null && (
+                    <div
+                      className="absolute top-0 h-[5px] w-[2px] bg-txt/60"
+                      style={{ left: `${Math.min(100, pace.expectedProgress)}%` }}
+                      title={`Esperado: ${pace.expectedProgress}%`}
+                    />
+                  )}
+                </div>
+              </div>
+              <p className="text-[11px] text-muted leading-snug">{pace.detail}</p>
             </div>
           ))}
         </div>

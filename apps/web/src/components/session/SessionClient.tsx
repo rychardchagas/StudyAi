@@ -469,8 +469,8 @@ export function SessionClient() {
               <circle cx="100" cy="100" r={focusRadius} fill="none" stroke="rgba(255,255,255,.05)" strokeWidth="7" />
               <defs>
                 <linearGradient id="focus-ring" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#3B82F6" />
-                  <stop offset="100%" stopColor="#8B5CF6" />
+                  <stop offset="0%" stopColor="oklch(var(--primary))" />
+                  <stop offset="100%" stopColor="oklch(var(--secondary))" />
                 </linearGradient>
               </defs>
               <circle
@@ -484,7 +484,7 @@ export function SessionClient() {
                 strokeDasharray={focusCircumference}
                 strokeDashoffset={focusDashOffset}
                 style={{ transition: "stroke-dashoffset .5s ease" }}
-                className={activeTimer.running ? "drop-shadow-[0_0_8px_#3B82F6]" : ""}
+                className={activeTimer.running ? "drop-shadow-[0_0_8px_oklch(var(--primary))]" : ""}
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -548,8 +548,8 @@ export function SessionClient() {
                 <circle cx="67" cy="67" r={ringRadius} fill="none" stroke="rgba(255,255,255,.06)" strokeWidth="5" />
                 <defs>
                   <linearGradient id="ring-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#3B82F6" />
-                    <stop offset="100%" stopColor="#8B5CF6" />
+                    <stop offset="0%" stopColor="oklch(var(--primary))" />
+                    <stop offset="100%" stopColor="oklch(var(--secondary))" />
                   </linearGradient>
                 </defs>
                 <circle
@@ -563,7 +563,7 @@ export function SessionClient() {
                   strokeDasharray={circumference}
                   strokeDashoffset={dashOffset}
                   style={{ transition: "stroke-dashoffset .5s ease" }}
-                  className={activeTimer.running ? "drop-shadow-[0_0_5px_#3B82F6]" : ""}
+                  className={activeTimer.running ? "drop-shadow-[0_0_5px_oklch(var(--primary))]" : ""}
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -827,7 +827,7 @@ export function SessionClient() {
           {/* AI Coach */}
           <div className="mb-2.5 overflow-hidden rounded-xl border border-border bg-card">
             <div className="flex items-center gap-1.5 border-b border-border px-3 py-2">
-              <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-secondary shadow-[0_0_5px_#8B5CF6]" />
+              <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-secondary shadow-[0_0_5px_oklch(var(--secondary))]" />
               <span className="text-xs font-semibold text-txt">Agente de Estudo</span>
             </div>
             <div className="flex max-h-40 flex-col gap-1.5 overflow-y-auto p-2.5">

@@ -20,9 +20,9 @@ const config: Config = {
         txt: "oklch(var(--txt))",
         dim: "oklch(var(--dim))",
         muted: "oklch(var(--muted))",
-        // Gold/amber — gamification: streak, XP, primary actions.
+        // Blue (Notion-inspired) — gamification: streak, XP, primary actions.
         primary: "oklch(var(--primary) / <alpha-value>)",
-        // Teal — AI/agent elements. Same L/C as primary, different hue.
+        // Green (Notion-inspired) — AI/agent elements. Same L/C as primary, different hue.
         secondary: "oklch(var(--secondary) / <alpha-value>)",
         success: "#22C55E",
         warning: "#F59E0B",

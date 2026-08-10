@@ -184,6 +184,56 @@ export function calcDisciplinePace(d: Discipline, now: Date = new Date()): Disci
   };
 }
 
+export interface Gamification {
+  xp: number;
+  level: number;
+  xpIntoLevel: number;
+  xpForNextLevel: number;
+  progressToNextLevel: number; // 0-1
+}
+
+// A motivational layer on top of real study activity — not a pedagogy claim like FSRS/
+// methodology selection elsewhere in this file, just XP/levels over what the student actually
+// did:
+// - 15 XP per completed session (showing up and studying is the core unit)
+// - +5 XP bonus per completed spaced-repetition review (rewards the harder-to-sustain habit,
+//   not just raw session count)
+// - +3 XP per day of the *current* streak (rewards consistency; a broken streak stops earning
+//   new bonus XP, but XP already earned from past sessions is never taken away)
+// Level curve is a square-root shape (xpForLevel(L) = 50 * (L-1)^2): quick early levels, each
+// subsequent one needs progressively more — level 1 at 0 XP, 2 at 50, 3 at 200, 4 at 450, 5 at 800.
+const XP_PER_SESSION = 15;
+const XP_PER_REVIEW = 5;
+const XP_PER_STREAK_DAY = 3;
+const LEVEL_XP_UNIT = 50;
+
+function xpForLevel(level: number): number {
+  return LEVEL_XP_UNIT * (level - 1) ** 2;
+}
+
+export function calcGamification(sessions: StudySession[], now: Date = new Date()): Gamification {
+  const completed = sessions.filter((s) => s.completed);
+  const reviews = completed.filter((s) => s.methodology?.includes("Espaçada")).length;
+  const streak = calcStreakDays(sessions, now);
+  const xp = completed.length * XP_PER_SESSION + reviews * XP_PER_REVIEW + streak * XP_PER_STREAK_DAY;
+
+  let level = 1;
+  while (xp >= xpForLevel(level + 1)) level++;
+
+  const currentFloor = xpForLevel(level);
+  const nextFloor = xpForLevel(level + 1);
+  const xpIntoLevel = xp - currentFloor;
+  const xpForNextLevel = nextFloor - currentFloor;
+
+  return {
+    xp,
+    level,
+    xpIntoLevel,
+    xpForNextLevel,
+    progressToNextLevel: xpForNextLevel > 0 ? xpIntoLevel / xpForNextLevel : 1,
+  };
+}
+
 export function generateInsights(sessions: StudySession[], modules: Module[], disciplines: Discipline[] = []): Insight[] {
   const insights: Insight[] = [];
   const adherence = calcWeeklyAdherence(sessions);

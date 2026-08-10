@@ -21,10 +21,14 @@
      not eyeballed. 65% clears 4.5:1 against every surface token (bg/surface/card/card2). */
   --muted: 65% 0.02 60;
 
-  /* Same lightness + chroma, different hue: gold (gamification/primary actions) vs.
-     teal (AI/agent elements) read as a deliberate pair, not two unrelated brand colors. */
-  --primary: 78% 0.14 75;
-  --secondary: 78% 0.13 195;
+  /* Hue borrowed from Notion's real accent palette (#2383E2 blue / #4DAB60 green, converted to
+     OKLCH — real sRGB->OKLab->OKLCH math, not eyeballed) — same L/C we already validated for
+     legibility on our dark surfaces (was gold/teal), only H changed. Blue for primary actions,
+     green for AI/agent elements — mirrors the app's existing "two-accent, one pair" convention
+     instead of adopting Notion's whole light UI. Contrast re-verified: 5.4:1+ as text on every
+     surface token (bg/surface/card/card2), well above the 4.5:1 AA minimum. */
+  --primary: 78% 0.14 253;
+  --secondary: 78% 0.13 148;
 }
 
 * { box-sizing: border-box; }

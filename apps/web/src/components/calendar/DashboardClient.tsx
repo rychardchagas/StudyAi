@@ -107,6 +107,15 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
   );
 
   const weeklyAdherence = useMemo(() => calcWeeklyAdherence(initialSessions), [initialSessions]);
+  // Week-over-week delta for the stat card below — the other 3 Dashboard stat cards (sessões
+  // planejadas, tempo planejado, revisões espaçadas) are forward-looking projections from this
+  // week's generated calendar, not historical actuals, so a "vs. last week" comparison wouldn't
+  // be a real number for them. Aderência is the one stat here that's genuinely historical.
+  const adherenceDelta = useMemo(() => {
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    return weeklyAdherence - calcWeeklyAdherence(initialSessions, oneWeekAgo);
+  }, [initialSessions, weeklyAdherence]);
   const streakDays = useMemo(() => calcStreakDays(initialSessions), [initialSessions]);
   const allModules = useMemo(() => initialDisciplines.flatMap((d) => d.modules ?? []), [initialDisciplines]);
   const pendingReviews = useMemo(() => countPendingReviews(allModules), [allModules]);
@@ -277,7 +286,14 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
       <div className="px-4 pb-3 grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0">
         <StatCard icon={CalendarDays} accent="secondary" value={events.length} label="sessões esta semana" />
         <StatCard icon={Clock} accent="secondary" value={`${hoursPlanned}h`} label="tempo planejado" />
-        <StatCard icon={Target} accent="success" value={`${weeklyAdherence}%`} label="aderência" />
+        <StatCard
+          icon={Target}
+          accent="success"
+          value={`${weeklyAdherence}%`}
+          label="aderência"
+          delta={adherenceDelta !== 0 ? `${adherenceDelta > 0 ? "+" : ""}${adherenceDelta}% sem.` : undefined}
+          deltaDir={adherenceDelta > 0 ? "up" : adherenceDelta < 0 ? "dn" : "neu"}
+        />
         <StatCard icon={Repeat} accent="primary" value={spacedReviews} label="revisões espaçadas" />
       </div>
 

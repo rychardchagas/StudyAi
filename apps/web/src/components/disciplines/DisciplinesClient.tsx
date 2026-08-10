@@ -86,6 +86,56 @@ function moduleStatusClasses(status: ModuleStatus): string {
   return "bg-card2 text-muted";
 }
 
+const KANBAN_COLUMNS: { status: ModuleStatus; label: string }[] = [
+  { status: "pend", label: "Pendente" },
+  { status: "prog", label: "Em curso" },
+  { status: "done", label: "Feito" },
+];
+
+// Per-discipline mini board — same click-to-cycle interaction the list view already uses
+// (updateModuleStatus/nextModuleStatus), just grouped into columns instead of a flat list. Not
+// drag-and-drop: the app has no other DnD status pattern anywhere else, so a click stayed
+// consistent with the rest of the UI instead of introducing a one-off interaction model.
+function ModuleKanban({
+  modules,
+  onCycleStatus,
+  disciplineId,
+}: {
+  modules: Module[];
+  onCycleStatus: (disciplineId: string, moduleId: string, status: ModuleStatus) => void;
+  disciplineId: string;
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-1.5">
+      {KANBAN_COLUMNS.map((col) => {
+        const items = modules.filter((m) => m.status === col.status);
+        return (
+          <div key={col.status} className="min-w-0 rounded-md bg-card2 p-1">
+            <div className="mb-1 flex items-center justify-between px-0.5">
+              <span className="text-[9px] font-semibold uppercase tracking-wide text-muted">{col.label}</span>
+              <span className="font-mono text-[9px] text-muted">{items.length}</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              {items.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => onCycleStatus(disciplineId, m.id, nextModuleStatus(m.status))}
+                  title={`${m.name} — clique para mudar status`}
+                  className={`truncate rounded px-1 py-1 text-left text-[10px] leading-tight cursor-pointer ${moduleStatusClasses(m.status)}`}
+                >
+                  {m.name}
+                </button>
+              ))}
+              {items.length === 0 && <div className="px-0.5 py-1 text-[9px] text-muted">—</div>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 interface NewDisciplineForm {
   name: string;
   horas_semana: number;
@@ -131,6 +181,7 @@ export function DisciplinesClient({
   const { groups, addGroup, renameGroup, removeGroup } = useDisciplineGroups(initialGroups);
 
   const [showForm, setShowForm] = useState(false);
+  const [moduleView, setModuleView] = useState<"list" | "kanban">("list");
   const [form, setForm] = useState<NewDisciplineForm>(emptyForm);
   const [parsedModules, setParsedModules] = useState<ParsedModule[]>([]);
   const [parsing, setParsing] = useState(false);
@@ -601,28 +652,32 @@ export function DisciplinesClient({
             </div>
           )}
 
-          <div className="flex flex-col gap-0.5">
-            {modules.slice(0, 4).map((m) => (
-              <div key={m.id} className="flex items-center gap-1.5 text-[11px] text-dim">
-                <div
-                  className={`w-[5px] h-[5px] rounded-full flex-shrink-0 ${
-                    m.status === "done" ? "bg-success" : m.status === "prog" ? "bg-primary" : "bg-muted"
-                  }`}
-                />
-                <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{m.name}</span>
-                <span
-                  onClick={() => updateModuleStatus(d.id, m.id, nextModuleStatus(m.status))}
-                  title="Clique para mudar status"
-                  className={`font-mono text-[9px] px-1 py-0.5 rounded cursor-pointer ${moduleStatusClasses(m.status)}`}
-                >
-                  {moduleStatusLabel(m.status)}
-                </span>
-              </div>
-            ))}
-            {modules.length > 4 && (
-              <div className="text-[10px] text-muted pl-[11px]">+{modules.length - 4} módulos</div>
-            )}
-          </div>
+          {moduleView === "list" ? (
+            <div className="flex flex-col gap-0.5">
+              {modules.slice(0, 4).map((m) => (
+                <div key={m.id} className="flex items-center gap-1.5 text-[11px] text-dim">
+                  <div
+                    className={`w-[5px] h-[5px] rounded-full flex-shrink-0 ${
+                      m.status === "done" ? "bg-success" : m.status === "prog" ? "bg-primary" : "bg-muted"
+                    }`}
+                  />
+                  <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{m.name}</span>
+                  <span
+                    onClick={() => updateModuleStatus(d.id, m.id, nextModuleStatus(m.status))}
+                    title="Clique para mudar status"
+                    className={`font-mono text-[9px] px-1 py-0.5 rounded cursor-pointer ${moduleStatusClasses(m.status)}`}
+                  >
+                    {moduleStatusLabel(m.status)}
+                  </span>
+                </div>
+              ))}
+              {modules.length > 4 && (
+                <div className="text-[10px] text-muted pl-[11px]">+{modules.length - 4} módulos</div>
+              )}
+            </div>
+          ) : (
+            <ModuleKanban disciplineId={d.id} modules={modules} onCycleStatus={updateModuleStatus} />
+          )}
           </>
           )}
         </div>
@@ -695,6 +750,24 @@ export function DisciplinesClient({
           </div>
         </div>
         <div className="flex gap-2 flex-wrap items-start">
+          <div className="flex overflow-hidden rounded-lg border border-border h-[30px]">
+            <button
+              type="button"
+              onClick={() => setModuleView("list")}
+              title="Ver módulos em lista"
+              className={`px-2.5 text-xs font-medium ${moduleView === "list" ? "bg-primary/15 text-primary" : "bg-card2 text-dim hover:text-txt"}`}
+            >
+              📋 Lista
+            </button>
+            <button
+              type="button"
+              onClick={() => setModuleView("kanban")}
+              title="Ver módulos em kanban por status"
+              className={`px-2.5 text-xs font-medium border-l border-border ${moduleView === "kanban" ? "bg-primary/15 text-primary" : "bg-card2 text-dim hover:text-txt"}`}
+            >
+              📊 Kanban
+            </button>
+          </div>
           {addingGroup ? (
             <div className="flex items-center gap-1.5">
               <input
