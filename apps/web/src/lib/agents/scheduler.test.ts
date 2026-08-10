@@ -41,8 +41,17 @@ describe("generateCalendar distribution", () => {
   // A gets high weight (more sessions), B gets low weight but still several — enough that B's
   // budget runs out partway through the week if (and only if) sessions are spread evenly across
   // days from the start, rather than the queue accidentally aligning with day boundaries.
-  const disciplineA = makeDiscipline({ id: "a", name: "Alta Prioridade", horas_semana: 6, prioridade: "Alta" });
-  const disciplineB = makeDiscipline({ id: "b", name: "Baixa Prioridade", horas_semana: 4, prioridade: "Baixa" });
+  // A discipline with zero modules gets zero weight (see the dedicated tests below) — these two
+  // exist to test distribution/interleaving math, so they need at least one module each to stay
+  // meaningful under that rule, even though the module's own content is irrelevant here.
+  const disciplineA = makeDiscipline({
+    id: "a", name: "Alta Prioridade", horas_semana: 6, prioridade: "Alta",
+    modules: [makeModule({ id: "a-m0", name: "A Module", status: "pend" })],
+  });
+  const disciplineB = makeDiscipline({
+    id: "b", name: "Baixa Prioridade", horas_semana: 4, prioridade: "Baixa",
+    modules: [makeModule({ id: "b-m0", name: "B Module", status: "pend" })],
+  });
   const fiveDaysFourSlots = { 0: [1, 2, 3, 4], 1: [1, 2, 3, 4], 2: [1, 2, 3, 4], 3: [1, 2, 3, 4], 4: [1, 2, 3, 4] };
 
   it("does not silently drop sessions when interleaving can't find a swap partner", () => {
@@ -65,8 +74,14 @@ describe("generateCalendar distribution", () => {
     // Two evenly-weighted disciplines with a single shared day should strictly alternate —
     // this fails if the swap mutates the queue but the placement code still reads the
     // pre-swap reference (the bug this test guards against).
-    const evenA = makeDiscipline({ id: "a", name: "A", horas_semana: 4, prioridade: "Média" });
-    const evenB = makeDiscipline({ id: "b", name: "B", horas_semana: 4, prioridade: "Média" });
+    const evenA = makeDiscipline({
+      id: "a", name: "A", horas_semana: 4, prioridade: "Média",
+      modules: [makeModule({ id: "a-m0", name: "A Module", status: "pend" })],
+    });
+    const evenB = makeDiscipline({
+      id: "b", name: "B", horas_semana: 4, prioridade: "Média",
+      modules: [makeModule({ id: "b-m0", name: "B Module", status: "pend" })],
+    });
     const oneDay = { 0: [1, 2, 3, 4, 5, 6] };
     const events = generateCalendar([evenA, evenB], oneDay).sort((a, b) => a.slotIndex - b.slotIndex);
     for (let i = 1; i < events.length; i++) {
@@ -114,7 +129,10 @@ describe("generateCalendar distribution", () => {
   });
 
   it("excludes days before today on the current week (weekIndex 0) but not other weeks", () => {
-    const disc = makeDiscipline({ id: "a", name: "A", horas_semana: 6, prioridade: "Alta" });
+    const disc = makeDiscipline({
+      id: "a", name: "A", horas_semana: 6, prioridade: "Alta",
+      modules: [makeModule({ id: "m0", name: "Module", status: "pend" })],
+    });
     const availability = { 0: [1, 2], 1: [1, 2], 2: [1, 2], 3: [1, 2], 4: [1, 2] };
 
     // "Today" is Thursday (index 3) — Mon/Tue/Wed already happened this week.
@@ -139,6 +157,32 @@ describe("generateCalendar distribution", () => {
     const week0Modules = week0.map((e) => e.moduleId).join(",");
     const week1Modules = week1.map((e) => e.moduleId).join(",");
     expect(week1Modules).not.toBe(week0Modules);
+  });
+
+  it("gives zero proportional slots to a discipline with no modules registered yet", () => {
+    // Real bug: "Inglês" (0 modules, horas_semana 2) was still getting weighted slots — every
+    // one of them fell back to pickModuleForSession() returning undefined, so the event showed
+    // moduleName === disciplineName (e.g. "Inglês / Inglês", nothing real to study). A
+    // content-less discipline should get 0 proportional sessions, leaving that room for the
+    // discipline that actually has modules.
+    const empty = makeDiscipline({ id: "empty", name: "Inglês", horas_semana: 2, modules: [] });
+    const withContent = makeDiscipline({
+      id: "content", name: "Com Conteúdo", horas_semana: 6, prioridade: "Alta",
+      modules: [makeModule({ id: "m0", name: "Module 0", status: "pend" })],
+    });
+    const availability = { 0: [1, 2, 3, 4], 1: [1, 2, 3, 4], 2: [1, 2, 3, 4] };
+
+    const events = generateCalendar([empty, withContent], availability);
+    expect(events.some((e) => e.disciplineId === "empty")).toBe(false);
+    expect(events.every((e) => e.disciplineId === "content")).toBe(true);
+    expect(events.length).toBeGreaterThan(0);
+  });
+
+  it("does not divide by zero when every discipline has no modules", () => {
+    const empty = makeDiscipline({ id: "empty", name: "Inglês", horas_semana: 2, modules: [] });
+    const availability = { 0: [1, 2, 3, 4] };
+    expect(() => generateCalendar([empty], availability)).not.toThrow();
+    expect(generateCalendar([empty], availability)).toEqual([]);
   });
 
   it("stops scheduling 'new' content once the projected pace has covered it all, switching to review", () => {

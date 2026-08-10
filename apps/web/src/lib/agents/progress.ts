@@ -97,8 +97,14 @@ export function calcDisciplinePace(d: Discipline, now: Date = new Date()): Disci
   const examDate = nearestEvaluationDate(d, now);
 
   if (!examDate) {
-    const detail =
-      weeksToComplete === null
+    // calcETA (and so weeksToComplete) returns null both when every module is done AND when
+    // there are zero modules at all — same signal, opposite meanings. Disambiguate here instead
+    // of overloading calcETA's contract for every other caller: a discipline with no modules
+    // hasn't "covered" anything, there was just never any content registered to cover.
+    const hasModules = (d.modules ?? []).length > 0;
+    const detail = !hasModules
+      ? "Nenhum módulo cadastrado ainda — adicione o conteúdo em Matérias para o calendário gerar sessões de estudo."
+      : weeksToComplete === null
         ? `${actualProgress}% concluído — todo o conteúdo já foi coberto.`
         : `${actualProgress}% concluído. Sem prova marcada — no ritmo atual, previsão de terminar o conteúdo em ${weeksToComplete} ${weeksToComplete === 1 ? "semana" : "semanas"} (${formatDatePtBr(projectedCompletionDate!)}).`;
     return {

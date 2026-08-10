@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { calcGamification } from "./progress";
-import type { StudySession } from "@/types";
+import { calcGamification, calcDisciplinePace } from "./progress";
+import type { Discipline, StudySession } from "@/types";
 
 function makeSession(overrides: Partial<StudySession> = {}): StudySession {
   return {
@@ -15,6 +15,23 @@ function makeSession(overrides: Partial<StudySession> = {}): StudySession {
     notes: null,
     completed_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function makeDiscipline(overrides: Partial<Discipline> & { id: string; name: string }): Discipline {
+  return {
+    type: "Graduação",
+    color: "#3B82F6",
+    horas_semana: 4,
+    prioridade: "Média",
+    exam_date: null,
+    progress: 0,
+    fixed_schedule: [],
+    group_id: null,
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+    modules: [],
     ...overrides,
   };
 }
@@ -56,5 +73,33 @@ describe("calcGamification", () => {
     const sessions = Array.from({ length: 4 }, () => makeSession());
     const g = calcGamification(sessions);
     expect(g.progressToNextLevel).toBeCloseTo(13 / 150, 5);
+  });
+});
+
+describe("calcDisciplinePace", () => {
+  it("says 'no modules registered' instead of 'all content covered' for a discipline with zero modules", () => {
+    // Real bug: calcETA([], ...) returns null for the exact same reason it returns null when
+    // every module is "done" — calcDisciplinePace used to conflate the two and tell a student
+    // who never added any content that "todo o conteúdo já foi coberto" (all content already
+    // covered), which is backwards.
+    const empty = makeDiscipline({ id: "d", name: "Inglês", modules: [] });
+    const pace = calcDisciplinePace(empty);
+    expect(pace.detail).not.toMatch(/já foi coberto/);
+    expect(pace.detail).toMatch(/nenhum módulo cadastrado/i);
+  });
+
+  it("still says 'all content covered' when modules exist and are all done", () => {
+    const allDone = makeDiscipline({
+      id: "d",
+      name: "Com conteúdo",
+      progress: 100,
+      modules: [
+        { id: "m0", discipline_id: "d", name: "M0", status: "done", estimated_hours: 4, order_index: 0,
+          fsrs_stability: 0, fsrs_difficulty: 0, fsrs_due_date: null, fsrs_reps: 0, fsrs_lapses: 0,
+          fsrs_state: "new", topics: [], created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z" },
+      ],
+    });
+    const pace = calcDisciplinePace(allDone);
+    expect(pace.detail).toMatch(/já foi coberto/);
   });
 });

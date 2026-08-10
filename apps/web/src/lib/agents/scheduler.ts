@@ -87,8 +87,17 @@ export function generateCalendar(
     }
   }
 
-  const weights = disciplines.map((d) => Math.max(1, d.horas_semana + (PRI_BONUS[d.prioridade] ?? 0)));
-  const totalW = weights.reduce((a, b) => a + b, 0);
+  // A discipline with zero modules gets zero weight — there's no real content to assign to a
+  // proportional self-study slot, so pickModuleForSession would return undefined and the event
+  // fell back to `moduleName: disc.name`, showing e.g. "Inglês / Inglês" on the calendar for a
+  // session with nothing to actually study. Real classes still show up via fixed_schedule below
+  // (a "you have Inglês at 20h Tuesday" marker is legitimate even with 0 modules registered yet)
+  // — this only stops the discipline from silently eating proportional slots that a discipline
+  // with real content could have used instead.
+  const weights = disciplines.map((d) =>
+    (d.modules ?? []).length === 0 ? 0 : Math.max(1, d.horas_semana + (PRI_BONUS[d.prioridade] ?? 0))
+  );
+  const totalW = weights.reduce((a, b) => a + b, 0) || 1; // avoid divide-by-zero when every discipline is content-less
 
   // A discipline's content isn't infinite — once its current weekly pace would have covered all
   // pending modules by the week being generated, stop treating it as having "new" content to
@@ -120,7 +129,10 @@ export function generateCalendar(
         disciplineName: disc.name,
         disciplineColor: disc.color,
         moduleId: mod?.id,
-        moduleName: mod?.name ?? disc.name,
+        // A fixed class slot survives even with 0 modules registered (attending a real class is
+        // legitimate on its own) — but repeating disciplineName as moduleName read as an unfilled
+        // field duplicating itself ("Inglês — Inglês"), not as "no module yet". Name it honestly.
+        moduleName: mod?.name ?? "Conteúdo a definir",
         dayOfWeek,
         slotIndex,
         methodology: "Aula Fixa",
@@ -206,7 +218,7 @@ export function generateCalendar(
       disciplineName: disc.name,
       disciplineColor: disc.color,
       moduleId: mod?.id,
-      moduleName: isReview ? `🔁 Revisão — ${mod?.name ?? "módulo anterior"}` : (mod?.name ?? disc.name),
+      moduleName: isReview ? `🔁 Revisão — ${mod?.name ?? "módulo anterior"}` : (mod?.name ?? "Conteúdo a definir"),
       dayOfWeek: col,
       slotIndex: slot,
       methodology,
