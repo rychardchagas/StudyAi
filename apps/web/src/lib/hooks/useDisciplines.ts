@@ -9,6 +9,21 @@ export type NewDisciplineInput = Omit<Partial<Discipline>, "modules"> & {
   modules?: Array<{ name: string; estimated_hours?: number; topics?: string[] }>;
 };
 
+// Mirrors recalculateAllProgress()'s formula in local-db.ts exactly. The server already
+// recalculates disciplines.progress on every module status/create/delete — but this hook keeps
+// its own client-side copy of `disciplines` in useState(initial), which (a) never re-syncs from
+// a changed `initial` prop after mount, React doesn't do that automatically, and (b) never
+// touched `.progress` on its own optimistic updates below. Net effect: the card's own "X%
+// concluído" badge sat stale until a full page reload, even though the number stored in SQLite
+// was already correct — the fix is computing it here too, not just on the server.
+function withRecalculatedProgress(d: Discipline): Discipline {
+  const modules = d.modules ?? [];
+  if (!modules.length) return d;
+  const doneCount = modules.filter((m) => m.status === "done").length;
+  const progress = Math.round((doneCount / modules.length) * 100);
+  return progress === d.progress ? d : { ...d, progress };
+}
+
 export function useDisciplines(initial: Discipline[]) {
   const router = useRouter();
   const [disciplines, setDisciplines] = useState<Discipline[]>(initial);
@@ -80,7 +95,10 @@ export function useDisciplines(initial: Discipline[]) {
       setDisciplines((prev) =>
         prev.map((d) =>
           d.id === disciplineId
-            ? { ...d, modules: (d.modules ?? []).map((m) => (m.id === moduleId ? { ...m, status } : m)) }
+            ? withRecalculatedProgress({
+                ...d,
+                modules: (d.modules ?? []).map((m) => (m.id === moduleId ? { ...m, status } : m)),
+              })
             : d
         )
       );
@@ -104,7 +122,10 @@ export function useDisciplines(initial: Discipline[]) {
       setDisciplines((prev) =>
         prev.map((d) =>
           d.id === disciplineId
-            ? { ...d, modules: (d.modules ?? []).map((m) => (m.id === moduleId ? { ...m, ...updates } : m)) }
+            ? withRecalculatedProgress({
+                ...d,
+                modules: (d.modules ?? []).map((m) => (m.id === moduleId ? { ...m, ...updates } : m)),
+              })
             : d
         )
       );
@@ -134,7 +155,9 @@ export function useDisciplines(initial: Discipline[]) {
         if (!res.ok) throw new Error("request failed");
         const created: Module = await res.json();
         setDisciplines((prev) =>
-          prev.map((d) => (d.id === disciplineId ? { ...d, modules: [...(d.modules ?? []), created] } : d))
+          prev.map((d) =>
+            d.id === disciplineId ? withRecalculatedProgress({ ...d, modules: [...(d.modules ?? []), created] }) : d
+          )
         );
         router.refresh();
       } catch {
@@ -171,7 +194,9 @@ export function useDisciplines(initial: Discipline[]) {
   const removeModule = useCallback(async (disciplineId: string, moduleId: string) => {
     setDisciplines((prev) =>
       prev.map((d) =>
-        d.id === disciplineId ? { ...d, modules: (d.modules ?? []).filter((m) => m.id !== moduleId) } : d
+        d.id === disciplineId
+          ? withRecalculatedProgress({ ...d, modules: (d.modules ?? []).filter((m) => m.id !== moduleId) })
+          : d
       )
     );
     try {
