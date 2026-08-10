@@ -151,6 +151,10 @@ O banco SQLite é criado automaticamente na primeira execução, dentro de `apps
 precisa configurar nada além de ter o Ollama rodando (ou apontar pra outro provedor). Passo a
 passo completo: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 
+Instalando pra alguém que não mexe com terminal/código? Existe uma versão desse mesmo passo —
+instalar o Ollama e conectar no StudyAI — sem nenhum comando de desenvolvedor, só cliques e um
+único comando pra copiar/colar: [docs/GUIA_INSTALAR_IA_LOCAL.md](docs/GUIA_INSTALAR_IA_LOCAL.md).
+
 ### Gestão de memória do Ollama
 
 O instalador do Ollama no Windows liga um app de bandeja no login automaticamente — isso foi
