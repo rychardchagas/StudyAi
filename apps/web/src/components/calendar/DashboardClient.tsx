@@ -288,7 +288,12 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
         <StatCard icon={Repeat} accent="primary" value={spacedReviews} label="revisões espaçadas" />
       </div>
 
-      <div className="flex flex-col xl:flex-row xl:h-[580px] overflow-hidden mx-4 mb-3.5 border border-border rounded-xl shrink-0">
+      {/* Height used to be a flat xl:h-[580px] — fine for 16 hourly rows (06h–21h), but with the
+          calendar expanded to 21 rows (04h–00h) that fixed guess meant a lot more internal scroll
+          on typical screens. Tied to the viewport instead (minus roughly what the header/stat
+          cards above take), so it actually uses whatever room the screen has instead of a
+          one-size guess — clamped so it never gets uncomfortably short/tall on unusual viewports. */}
+      <div className="flex flex-col xl:flex-row xl:h-[clamp(420px,calc(100vh-260px),780px)] overflow-hidden mx-4 mb-3.5 border border-border rounded-xl shrink-0">
         <div className="h-[440px] xl:h-auto flex-1 flex flex-col overflow-hidden">
           <div className="px-3.5 py-2 border-b border-border flex items-center justify-between gap-2 flex-wrap shrink-0">
             <div className="flex items-center gap-1.5">

@@ -43,7 +43,7 @@ export function CalGrid({ events, onClickEvent, weekDates }: CalGridProps) {
           {SLOT_LABELS.map((t) => (
             <div
               key={t}
-              className="h-11 sm:h-[50px] flex items-start justify-end pt-0.5 pr-1 font-mono text-[9px] sm:text-[10px] text-muted border-t border-white/[0.03]"
+              className="h-9 sm:h-[42px] flex items-start justify-end pt-0.5 pr-1 font-mono text-[9px] sm:text-[10px] text-muted border-t border-white/[0.03]"
             >
               {t}
             </div>
@@ -56,7 +56,7 @@ export function CalGrid({ events, onClickEvent, weekDates }: CalGridProps) {
               {SLOT_LABELS.map((_, slotIdx) => {
                 const ev = colEvents.find((e) => e.slotIndex === slotIdx);
                 return (
-                  <div key={slotIdx} className="h-11 sm:h-[50px] rounded-[5px] bg-white/[0.02] relative">
+                  <div key={slotIdx} className="h-9 sm:h-[42px] rounded-[5px] bg-white/[0.02] relative">
                     {ev && (
                       <button
                         type="button"
