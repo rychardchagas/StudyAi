@@ -87,11 +87,16 @@ export function SessionClient() {
   }, [pomodoro.justTransitioned]);
 
   // Background music — lofi ambience (generated locally, no external file/stream) by default,
-  // swappable for the student's own Spotify playlist if one is configured in Settings.
+  // swappable for the student's own Spotify playlist. Configurable right here (not just in
+  // Settings → Sessão) so it's a one-click edit without leaving the session, like a Notion widget.
   const lofi = useLofiAmbience();
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [musicSource, setMusicSource] = useState<"lofi" | "spotify">("lofi");
+  const [spotifyRawUrl, setSpotifyRawUrl] = useState("");
   const [spotifyEmbedUrl, setSpotifyEmbedUrl] = useState<string | null>(null);
+  const [editingSpotify, setEditingSpotify] = useState(false);
+  const [spotifyInput, setSpotifyInput] = useState("");
+  const [savingSpotify, setSavingSpotify] = useState(false);
   useEffect(() => {
     (async () => {
       try {
@@ -99,12 +104,51 @@ export function SessionClient() {
         if (!res.ok) return;
         const profile = await res.json();
         const raw = profile?.preferences?.pomodoro?.spotifyUrl;
-        if (typeof raw === "string" && raw.trim()) setSpotifyEmbedUrl(parseSpotifyEmbedUrl(raw));
+        if (typeof raw === "string" && raw.trim()) {
+          setSpotifyRawUrl(raw);
+          setSpotifyEmbedUrl(parseSpotifyEmbedUrl(raw));
+        }
       } catch {
         // no music panel change on failure — lofi source stays the default
       }
     })();
   }, []);
+
+  async function handleSaveSpotifyUrl() {
+    setSavingSpotify(true);
+    try {
+      const trimmed = spotifyInput.trim();
+      // Read the current profile fresh right before writing — preferences is a shared blob (ai
+      // provider config, notifications, availability, etc.) and this must only ever touch its own
+      // `pomodoro` key, never overwrite the rest with whatever this component last saw on mount.
+      const current = await (await fetch("/api/profile")).json();
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          preferences: { ...(current.preferences ?? {}), pomodoro: { spotifyUrl: trimmed } },
+        }),
+      });
+      if (!res.ok) throw new Error("save failed");
+      setSpotifyRawUrl(trimmed);
+      const embed = parseSpotifyEmbedUrl(trimmed);
+      setSpotifyEmbedUrl(embed);
+      setEditingSpotify(false);
+      if (embed) {
+        setMusicSource("spotify");
+        toast.success("Playlist salva.");
+      } else if (trimmed) {
+        toast.error("Link salvo, mas não reconheci como um link do Spotify — confira e tente de novo.");
+      } else {
+        setMusicSource("lofi");
+        toast.success("Playlist removida — voltando pro lofi.");
+      }
+    } catch {
+      toast.error("Não foi possível salvar o link.");
+    } finally {
+      setSavingSpotify(false);
+    }
+  }
   useEffect(() => {
     if (pomodoroMode && activeTimer.running && musicEnabled && musicSource === "lofi") {
       lofi.start();
@@ -603,19 +647,71 @@ export function SessionClient() {
                     )}
                     {!spotifyEmbedUrl && <span className="font-mono text-[10px] text-dim">🎵 Lofi ambiente</span>}
                   </div>
-                  {musicSource === "lofi" && (
-                    <button
-                      type="button"
-                      onClick={() => setMusicEnabled((v) => !v)}
-                      title={musicEnabled ? "Desligar música" : "Ligar música"}
-                      className="font-mono text-[10px] text-dim hover:text-txt"
-                    >
-                      {musicEnabled ? "🔊" : "🔇"}
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {!editingSpotify && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSpotifyInput(spotifyRawUrl);
+                          setEditingSpotify(true);
+                        }}
+                        title={spotifyEmbedUrl ? "Editar link do Spotify" : "Usar playlist do Spotify"}
+                        className="font-mono text-[10px] text-dim hover:text-txt"
+                      >
+                        {spotifyEmbedUrl ? "✏️" : "+ Spotify"}
+                      </button>
+                    )}
+                    {!editingSpotify && musicSource === "lofi" && (
+                      <button
+                        type="button"
+                        onClick={() => setMusicEnabled((v) => !v)}
+                        title={musicEnabled ? "Desligar música" : "Ligar música"}
+                        className="font-mono text-[10px] text-dim hover:text-txt"
+                      >
+                        {musicEnabled ? "🔊" : "🔇"}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {musicSource === "lofi" ? (
+                {editingSpotify ? (
+                  <div>
+                    <div className="flex gap-1.5">
+                      <input
+                        autoFocus
+                        type="text"
+                        value={spotifyInput}
+                        onChange={(e) => setSpotifyInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSaveSpotifyUrl();
+                          if (e.key === "Escape") setEditingSpotify(false);
+                        }}
+                        placeholder="https://open.spotify.com/playlist/..."
+                        className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 py-1 font-mono text-[10px] text-txt outline-none focus:border-primary/50"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveSpotifyUrl}
+                        disabled={savingSpotify}
+                        className="rounded-md bg-primary px-2 py-1 font-mono text-[10px] font-semibold text-bg"
+                      >
+                        {savingSpotify ? "..." : "Salvar"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingSpotify(false)}
+                        className="rounded-md border border-border px-2 py-1 font-mono text-[10px] text-dim"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                    {spotifyInput.trim() && (
+                      <p className={`mt-1 text-[10px] ${parseSpotifyEmbedUrl(spotifyInput) ? "text-success" : "text-danger"}`}>
+                        {parseSpotifyEmbedUrl(spotifyInput) ? "✓ Link válido" : "✗ Não reconheci como link do Spotify"}
+                      </p>
+                    )}
+                  </div>
+                ) : musicSource === "lofi" ? (
                   <>
                     {musicEnabled && (
                       <input
