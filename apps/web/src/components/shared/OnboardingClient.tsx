@@ -70,6 +70,7 @@ export function OnboardingClient() {
   // Step 2/3 — disciplines + modules
   const [disciplines, setDisciplines] = useState<DisciplineDraft[]>([newDiscipline()]);
   const [importingEmentas, setImportingEmentas] = useState(false);
+  const [moduleKeywords, setModuleKeywords] = useState("");
   const ementaInputRef = useRef<HTMLInputElement>(null);
 
   // Step 4 — availability
@@ -140,6 +141,7 @@ export function OnboardingClient() {
         form.append("file", file);
         // No disciplineName sent — bulk import has no name yet, the model infers it from the
         // document itself (see /api/curriculum/parse).
+        if (moduleKeywords.trim()) form.append("moduleKeywords", moduleKeywords.trim());
         const res = await fetch("/api/curriculum/parse", { method: "POST", body: form });
         if (!res.ok) throw new Error("parse failed");
         const data: {
@@ -408,6 +410,14 @@ export function OnboardingClient() {
                     </div>
                   ))}
                 </div>
+                <input
+                  type="text"
+                  value={moduleKeywords}
+                  onChange={(e) => setModuleKeywords(e.target.value)}
+                  placeholder='Como suas ementas marcam cada módulo? (ex: "Unidade", "Capítulo") — opcional'
+                  maxLength={300}
+                  className={inputCls}
+                />
                 <div className="flex flex-wrap items-center gap-2">
                   <Button variant="outline" size="sm" onClick={addDiscipline}>
                     + Adicionar matéria
@@ -416,7 +426,7 @@ export function OnboardingClient() {
                     ref={ementaInputRef}
                     type="file"
                     multiple
-                    accept=".pdf,.txt,application/pdf,text/plain"
+                    accept=".pdf,.txt,.docx,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     className="hidden"
                     onChange={(e) => {
                       handleImportEmentas(e.target.files);
@@ -429,7 +439,7 @@ export function OnboardingClient() {
                     onClick={() => ementaInputRef.current?.click()}
                     disabled={importingEmentas}
                   >
-                    {importingEmentas ? "Importando…" : "📄 Importar ementas (PDF/TXT)"}
+                    {importingEmentas ? "Importando…" : "📄 Importar ementas (PDF/Word/TXT)"}
                   </Button>
                 </div>
                 <p className="text-[11px] text-muted">

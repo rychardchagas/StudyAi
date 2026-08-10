@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import pdfParse from "pdf-parse";
+import mammoth from "mammoth";
 import type { ParsedModule } from "@/lib/agents/curriculum";
 import { describeLlmError } from "@/lib/agents/llm-error";
 import { getLlmClient } from "@/lib/agents/llm-client";
@@ -13,9 +14,20 @@ const MAX_UPLOAD_BYTES = 15 * 1024 * 1024; // 15MB — generous for a syllabus, 
 
 async function extractText(file: File): Promise<string> {
   const buffer = Buffer.from(await file.arrayBuffer());
-  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+  const name = file.name.toLowerCase();
+  if (file.type === "application/pdf" || name.endsWith(".pdf")) {
     const data = await pdfParse(buffer);
     return data.text;
+  }
+  // .docx is a zip archive of XML, not plain text — the old fallback below (raw utf-8 decode)
+  // silently produced binary garbage for it instead of ever erroring, so "Word" support never
+  // actually worked despite being implied. mammoth reads the real document.xml inside.
+  if (
+    file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    name.endsWith(".docx")
+  ) {
+    const { value } = await mammoth.extractRawText({ buffer });
+    return value;
   }
   return buffer.toString("utf-8");
 }
@@ -49,6 +61,12 @@ export async function POST(req: NextRequest) {
     // discipline before uploading its ementa); bulk-import from Onboarding doesn't have a name
     // yet, so it's left for the model to infer from the document itself.
     const providedName = String(form.get("disciplineName") ?? "").trim();
+    // Optional student-supplied hint about how *this specific* document marks module boundaries
+    // (e.g. "Unidade", "Capítulo") — some ementas use unusual headers the generic prompt rules
+    // below won't anticipate. Treated as data, not instruction (quoted/labeled, same pattern as
+    // providedName/studentContext elsewhere) — this route has no tool-calling surface to hijack,
+    // but there's no reason to concatenate untrusted text as if it were a directive regardless.
+    const moduleKeywords = String(form.get("moduleKeywords") ?? "").trim().slice(0, 300);
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 });
@@ -73,6 +91,16 @@ export async function POST(req: NextRequest) {
           role: "user",
           content: `Parse this course syllabus (ementa) and extract structured data.
 ${providedName ? `The discipline is already named "${providedName}" — use that exact name.` : "Infer the discipline's name from the document itself (title, header, or subject matter)."}
+
+Brazilian ementas almost always mark each module/unit with a recognizable structural header —
+look for these to correctly identify where one module ends and the next begins, especially if
+table columns or a two-column layout got flattened/scrambled during text extraction:
+- "Unidade N", "Módulo N", "Capítulo N", "Bloco N", "Semana N", "Tópico N"
+- A numbered outline: "1. TITLE" followed by sub-items "1.1", "1.2" (the top-level numbers are
+  usually the real modules; the sub-items are that module's topics, not separate modules)
+- A table row where a title-like phrase sits next to a small number (that number is the module's
+  hour count, NOT its name — never use it as "name")
+${moduleKeywords ? `The student says this specific document marks each module with: "${moduleKeywords}" — treat that as the primary signal for module boundaries, above the generic patterns listed above.` : ""}
 
 Syllabus:
 ${text}

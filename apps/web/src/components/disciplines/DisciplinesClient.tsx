@@ -134,6 +134,7 @@ export function DisciplinesClient({
   const [form, setForm] = useState<NewDisciplineForm>(emptyForm);
   const [parsedModules, setParsedModules] = useState<ParsedModule[]>([]);
   const [parsing, setParsing] = useState(false);
+  const [moduleKeywords, setModuleKeywords] = useState("");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<EditDisciplineForm | null>(null);
@@ -221,6 +222,7 @@ export function DisciplinesClient({
       const body = new FormData();
       body.append("file", file);
       body.append("disciplineName", form.name.trim());
+      if (moduleKeywords.trim()) body.append("moduleKeywords", moduleKeywords.trim());
       const res = await fetch("/api/curriculum/parse", { method: "POST", body });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? data.error ?? "Falha ao processar o arquivo");
@@ -771,12 +773,20 @@ export function DisciplinesClient({
 
         <div className="border-t border-border pt-3">
           <label className="text-[10px] uppercase tracking-wide text-muted block mb-1.5">
-            Importar ementa (PDF ou texto) — opcional
+            Importar ementa (PDF, Word ou texto) — opcional
           </label>
+          <input
+            type="text"
+            value={moduleKeywords}
+            onChange={(e) => setModuleKeywords(e.target.value)}
+            placeholder='Como o documento marca cada módulo? (ex: "Unidade", "Capítulo") — opcional'
+            maxLength={300}
+            className="w-full bg-card2 border border-border rounded-lg px-2.5 py-1.5 text-xs text-txt outline-none focus:border-primary mb-2"
+          />
           <div className="flex items-center gap-3 flex-wrap">
             <input
               type="file"
-              accept=".pdf,.txt,.md,application/pdf,text/plain"
+              accept=".pdf,.txt,.md,.docx,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               disabled={parsing}
               onChange={(e) => {
                 const file = e.target.files?.[0];
