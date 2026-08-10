@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { completeSession, getModule, updateModule, recalculateAllProgress } from "@/lib/db/local-db";
+import { completeSession, createSession, getModule, updateModule, recalculateAllProgress } from "@/lib/db/local-db";
 import { handleApiError } from "@/lib/api/respond";
 import { sessionCompleteSchema } from "@/lib/api/schemas";
 import { scheduleCard, type FSRSCard, type Rating } from "@/lib/utils/fsrs";
 
 export async function POST(req: NextRequest) {
   try {
-    const { sessionId, moduleId, recallScore, notes, finished } = sessionCompleteSchema.parse(await req.json());
+    const body = sessionCompleteSchema.parse(await req.json());
+    const { moduleId, recallScore, notes, finished } = body;
+
+    const sessionId =
+      body.sessionId ??
+      createSession({
+        discipline_id: body.disciplineId,
+        module_id: moduleId,
+        scheduled_at: body.scheduledAt,
+        duration_minutes: body.durationMinutes,
+        methodology: body.methodology,
+      }).id;
 
     completeSession(sessionId, { recallScore, notes });
 

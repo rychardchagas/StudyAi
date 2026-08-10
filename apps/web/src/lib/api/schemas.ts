@@ -141,7 +141,15 @@ export const sessionCreateSchema = z
 
 export const sessionCompleteSchema = z
   .object({
-    sessionId: z.string().min(1),
+    // Either an existing session (normal flow: session was created when the timer started), or
+    // omit it and pass disciplineId+scheduledAt to create-then-complete in the same request — used
+    // by "mark as done" from the calendar, where no session exists yet and the old two-request
+    // create-then-complete round trip was pure avoidable latency for a same-machine SQLite write.
+    sessionId: z.string().min(1).optional(),
+    disciplineId: z.string().min(1).optional(),
+    scheduledAt: z.string().min(1).optional(),
+    durationMinutes: z.number().int().min(1).max(600).optional(),
+    methodology: z.string().max(100).nullable().optional(),
     // 1-4, matching FSRS's Again/Hard/Good/Easy rating (lib/utils/fsrs.ts's Rating type) — not a
     // broader 1-5 "how did it feel" scale. moduleId is what lets sessions/complete look up the
     // module's current FSRSCard and call scheduleCard() with this rating.
@@ -154,4 +162,7 @@ export const sessionCompleteSchema = z
     // completion flow, unchanged.
     finished: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .refine((v) => v.sessionId || (v.disciplineId && v.scheduledAt), {
+    message: "Either sessionId, or disciplineId+scheduledAt to create the session inline, is required",
+  });

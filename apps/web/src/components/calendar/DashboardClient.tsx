@@ -185,29 +185,22 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
     if (markingDone) return;
     setMarkingDone(true);
     try {
-      const createRes = await fetch("/api/sessions", {
+      // Single request: /api/sessions/complete creates the session inline when sessionId is
+      // omitted, instead of the old create-then-complete round trip (two sequential awaited
+      // fetches for what's really one write) — see the comment on sessionCompleteSchema.
+      const res = await fetch("/api/sessions/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          discipline_id: event.disciplineId,
-          module_id: event.moduleId || undefined,
-          scheduled_at: new Date().toISOString(),
-          duration_minutes: event.durationMinutes,
-          methodology: event.methodology,
-        }),
-      });
-      if (!createRes.ok) throw new Error("Failed to create session");
-      const created = await createRes.json();
-      const completeRes = await fetch("/api/sessions/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: created.id,
+          disciplineId: event.disciplineId,
           moduleId: event.moduleId || undefined,
+          scheduledAt: new Date().toISOString(),
+          durationMinutes: event.durationMinutes,
+          methodology: event.methodology,
           recallScore: 3,
         }),
       });
-      if (!completeRes.ok) throw new Error("Failed to complete session");
+      if (!res.ok) throw new Error("Failed to complete session");
       toast.success("Sessão marcada como concluída!");
       setSelectedEvent(null);
       router.refresh();
