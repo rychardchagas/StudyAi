@@ -171,8 +171,20 @@ export function ProgressClient({ initialDisciplines, initialSessions }: Progress
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3.5">
-        <StatCard icon={Flame} accent="primary" value={streak} label="dias consecutivos" />
-        <StatCard icon={BookOpen} accent="secondary" value={`${totalHours}h`} label="total do período" />
+        <StatCard
+          icon={Flame}
+          accent="primary"
+          value={streak}
+          label="dias consecutivos"
+          tooltip="Quantos dias seguidos, até hoje, você completou pelo menos uma sessão de estudo."
+        />
+        <StatCard
+          icon={BookOpen}
+          accent="secondary"
+          value={`${totalHours}h`}
+          label="total do período"
+          tooltip={`Soma da duração das sessões concluídas em "${PERIOD_LABELS[period]}" (seletor acima).`}
+        />
         <StatCard
           icon={Target}
           accent="success"
@@ -180,8 +192,15 @@ export function ProgressClient({ initialDisciplines, initialSessions }: Progress
           label="aderência geral"
           delta={adherenceDelta !== 0 ? `${adherenceDelta > 0 ? "+" : ""}${adherenceDelta}% sem.` : undefined}
           deltaDir={adherenceDelta > 0 ? "up" : adherenceDelta < 0 ? "dn" : "neu"}
+          tooltip="Das sessões planejadas para esta semana, quantas você já marcou como concluídas. O +/- compara com a semana passada."
         />
-        <StatCard icon={Brain} accent="primary" value={reviewsDone} label="revisões feitas" />
+        <StatCard
+          icon={Brain}
+          accent="primary"
+          value={reviewsDone}
+          label="revisões feitas"
+          tooltip={`Sessões de repetição espaçada concluídas em "${PERIOD_LABELS[period]}" (seletor acima).`}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 mb-2.5">

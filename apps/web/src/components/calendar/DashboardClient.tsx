@@ -304,8 +304,20 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
       </div>
 
       <div className="px-4 pb-3 grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0">
-        <StatCard icon={CalendarDays} accent="secondary" value={events.length} label="sessões esta semana" />
-        <StatCard icon={Clock} accent="secondary" value={`${hoursPlanned}h`} label="tempo planejado" />
+        <StatCard
+          icon={CalendarDays}
+          accent="secondary"
+          value={events.length}
+          label="sessões esta semana"
+          tooltip="Quantas sessões o calendário distribuiu para esta semana, somando todas as matérias."
+        />
+        <StatCard
+          icon={Clock}
+          accent="secondary"
+          value={`${hoursPlanned}h`}
+          label="tempo planejado"
+          tooltip="Soma da duração de todas as sessões planejadas para esta semana."
+        />
         <StatCard
           icon={Target}
           accent="success"
@@ -313,8 +325,15 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
           label="aderência"
           delta={adherenceDelta !== 0 ? `${adherenceDelta > 0 ? "+" : ""}${adherenceDelta}% sem.` : undefined}
           deltaDir={adherenceDelta > 0 ? "up" : adherenceDelta < 0 ? "dn" : "neu"}
+          tooltip="Das sessões planejadas para esta semana, quantas você já marcou como concluídas. O +/- compara com a semana passada."
         />
-        <StatCard icon={Repeat} accent="primary" value={spacedReviews} label="revisões espaçadas" />
+        <StatCard
+          icon={Repeat}
+          accent="primary"
+          value={spacedReviews}
+          label="revisões espaçadas"
+          tooltip="Sessões desta semana que são revisão de conteúdo já estudado (repetição espaçada), não conteúdo novo."
+        />
       </div>
 
       {/* Height used to be a flat xl:h-[580px] — fine for 16 hourly rows (06h–21h), but with the
