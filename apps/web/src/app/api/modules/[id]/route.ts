@@ -22,6 +22,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id } = await params;
     deleteModule(id);
+    // Removing a module changes both done-count and total — disciplines.progress is stale
+    // either way (shifts up if the removed module wasn't done, down if it was).
+    recalculateAllProgress();
     return NextResponse.json({ success: true });
   } catch (error) {
     return handleApiError(error, "Failed to delete module");
