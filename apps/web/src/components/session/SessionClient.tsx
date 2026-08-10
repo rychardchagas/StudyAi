@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { useTimer } from "@/lib/hooks/useTimer";
 import { usePomodoro } from "@/lib/hooks/usePomodoro";
+import { useLofiAmbience } from "@/lib/hooks/useLofiAmbience";
+import { parseSpotifyEmbedUrl } from "@/lib/utils/spotifyEmbed";
 import { Button } from "@/components/ui/Button";
 import { Tip } from "@/components/ui/Tip";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -83,6 +85,34 @@ export function SessionClient() {
     pomodoro.clearTransition();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pomodoro.justTransitioned]);
+
+  // Background music — lofi ambience (generated locally, no external file/stream) by default,
+  // swappable for the student's own Spotify playlist if one is configured in Settings.
+  const lofi = useLofiAmbience();
+  const [musicEnabled, setMusicEnabled] = useState(true);
+  const [musicSource, setMusicSource] = useState<"lofi" | "spotify">("lofi");
+  const [spotifyEmbedUrl, setSpotifyEmbedUrl] = useState<string | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/profile");
+        if (!res.ok) return;
+        const profile = await res.json();
+        const raw = profile?.preferences?.pomodoro?.spotifyUrl;
+        if (typeof raw === "string" && raw.trim()) setSpotifyEmbedUrl(parseSpotifyEmbedUrl(raw));
+      } catch {
+        // no music panel change on failure — lofi source stays the default
+      }
+    })();
+  }, []);
+  useEffect(() => {
+    if (pomodoroMode && activeTimer.running && musicEnabled && musicSource === "lofi") {
+      lofi.start();
+    } else {
+      lofi.stop();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pomodoroMode, activeTimer.running, musicEnabled, musicSource]);
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [focusMode, setFocusMode] = useState(false);
@@ -542,6 +572,86 @@ export function SessionClient() {
                 </span>
               )}
             </div>
+
+            {pomodoroMode && (
+              <div className="relative mb-2.5 rounded-lg border border-border bg-card2 p-2">
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    {spotifyEmbedUrl && (
+                      <div className="flex overflow-hidden rounded-md border border-border">
+                        <button
+                          type="button"
+                          onClick={() => setMusicSource("lofi")}
+                          className={cn(
+                            "px-2 py-0.5 font-mono text-[10px]",
+                            musicSource === "lofi" ? "bg-primary/15 text-primary" : "bg-transparent text-dim"
+                          )}
+                        >
+                          🎵 Lofi
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMusicSource("spotify")}
+                          className={cn(
+                            "px-2 py-0.5 font-mono text-[10px]",
+                            musicSource === "spotify" ? "bg-primary/15 text-primary" : "bg-transparent text-dim"
+                          )}
+                        >
+                          🎧 Spotify
+                        </button>
+                      </div>
+                    )}
+                    {!spotifyEmbedUrl && <span className="font-mono text-[10px] text-dim">🎵 Lofi ambiente</span>}
+                  </div>
+                  {musicSource === "lofi" && (
+                    <button
+                      type="button"
+                      onClick={() => setMusicEnabled((v) => !v)}
+                      title={musicEnabled ? "Desligar música" : "Ligar música"}
+                      className="font-mono text-[10px] text-dim hover:text-txt"
+                    >
+                      {musicEnabled ? "🔊" : "🔇"}
+                    </button>
+                  )}
+                </div>
+
+                {musicSource === "lofi" ? (
+                  <>
+                    {musicEnabled && (
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        defaultValue={0.3}
+                        onChange={(e) => lofi.setVolume(Number(e.target.value))}
+                        className="w-full accent-primary"
+                      />
+                    )}
+                    <p className="text-[10px] text-muted">
+                      Ambiente sonoro gerado localmente — toca enquanto o timer de foco/pausa estiver
+                      rodando.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <iframe
+                      title="Player do Spotify"
+                      src={spotifyEmbedUrl ?? undefined}
+                      width="100%"
+                      height="152"
+                      style={{ borderRadius: 8, border: "none" }}
+                      allow="autoplay; encrypted-media; clipboard-write; fullscreen; picture-in-picture"
+                      loading="lazy"
+                    />
+                    <p className="mt-1 text-[10px] text-muted">
+                      Pode ser preciso apertar play uma vez aqui dentro — o navegador nem sempre
+                      libera autoplay para o player embutido.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
             <div className="relative mb-2.5">
               <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
                 Como foi lembrar disso?

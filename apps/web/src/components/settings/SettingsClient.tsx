@@ -8,19 +8,21 @@ import { Toggle } from "@/components/ui/Toggle";
 import { SchedGrid } from "@/components/shared/SchedGrid";
 import { DAYS_LABELS, SLOT_LABELS } from "@/lib/utils/constants";
 import { clearActiveSession } from "@/lib/utils/activeSession";
+import { parseSpotifyEmbedUrl } from "@/lib/utils/spotifyEmbed";
 import type { Profile } from "@/types";
 
 interface SettingsClientProps {
   initialProfile: Profile;
 }
 
-type SettingsTab = "profile" | "notif" | "horarios" | "ia";
+type SettingsTab = "profile" | "notif" | "horarios" | "ia" | "sessao";
 
 const TABS: [SettingsTab, string][] = [
   ["profile", "Perfil"],
   ["notif", "Notificações"],
   ["horarios", "Horários"],
   ["ia", "IA & Agentes"],
+  ["sessao", "Sessão"],
 ];
 
 const NOTIFICATION_ITEMS: { key: string; label: string; description: string }[] = [
@@ -145,6 +147,10 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
     return seeded;
   });
 
+  // Sessão — música de fundo do Pomodoro
+  const savedPomodoro = (basePreferences.pomodoro ?? {}) as { spotifyUrl?: string };
+  const [spotifyUrl, setSpotifyUrl] = useState(() => savedPomodoro.spotifyUrl ?? "");
+
   function applyPreset(preset: ProviderPreset) {
     setLlmBaseUrl(preset.baseURL);
     setLlmModel(preset.model);
@@ -191,6 +197,7 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
             ai: { baseURL: llmBaseUrl.trim(), apiKey: llmApiKey.trim(), model: llmModel.trim() },
             replanAggressiveness,
             agentsEnabled,
+            pomodoro: { spotifyUrl: spotifyUrl.trim() },
           },
         }),
       });
@@ -551,6 +558,41 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
                   />
                 </div>
               ))}
+            </div>
+          )}
+
+          {activeTab === "sessao" && (
+            <div>
+              <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-muted mb-2.5">
+                Música de fundo (Pomodoro)
+              </div>
+              <p className="text-[11px] text-muted mb-3 leading-relaxed">
+                Por padrão, o Modo Pomodoro toca um ambiente sonoro lofi gerado localmente (sem
+                depender de internet). Se preferir sua própria playlist, cole abaixo o link de uma
+                playlist, álbum ou faixa do Spotify — na sessão você pode alternar entre as duas
+                fontes.
+              </p>
+              <div className="mb-1.5">
+                <label className={labelClass}>Link do Spotify (opcional)</label>
+                <input
+                  className={inputClass}
+                  value={spotifyUrl}
+                  onChange={(e) => setSpotifyUrl(e.target.value)}
+                  placeholder="https://open.spotify.com/playlist/..."
+                />
+              </div>
+              {spotifyUrl.trim() && (
+                <p className={`text-[11px] ${parseSpotifyEmbedUrl(spotifyUrl) ? "text-success" : "text-danger"}`}>
+                  {parseSpotifyEmbedUrl(spotifyUrl)
+                    ? "✓ Link válido — vai aparecer como opção na sessão."
+                    : "✗ Não reconheci esse link como uma playlist/álbum/faixa do Spotify — confira se copiou o link certo (open.spotify.com/...)."}
+                </p>
+              )}
+              <p className="text-[10px] text-muted mt-2">
+                Só o link fica salvo — não pedimos login nem token do Spotify. Quem estiver
+                logado no Spotify no navegador ouve a faixa completa; sem login, o player toca uma
+                prévia com anúncios (comportamento padrão do widget público do próprio Spotify).
+              </p>
             </div>
           )}
         </div>
