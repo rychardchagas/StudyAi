@@ -5,11 +5,14 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { Button } from "@/components/ui/Button";
 import { InlineEdit } from "@/components/ui/InlineEdit";
 import { Tip } from "@/components/ui/Tip";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { BookOpen, FolderPlus, Folder, X } from "lucide-react";
+import { SortableItem } from "@/components/shared/SortableItem";
+import { BookOpen, FolderPlus, Folder, X, GripVertical } from "lucide-react";
 import { useDisciplines } from "@/lib/hooks/useDisciplines";
 import { useDisciplineGroups } from "@/lib/hooks/useDisciplineGroups";
 import { calcETA } from "@/lib/utils/fsrs";
@@ -93,46 +96,84 @@ const KANBAN_COLUMNS: { status: ModuleStatus; label: string }[] = [
 ];
 
 // Per-discipline mini board — same click-to-cycle interaction the list view already uses
-// (updateModuleStatus/nextModuleStatus), just grouped into columns instead of a flat list. Not
-// drag-and-drop: the app has no other DnD status pattern anywhere else, so a click stayed
-// consistent with the rest of the UI instead of introducing a one-off interaction model.
+// (updateModuleStatus/nextModuleStatus), just grouped into columns instead of a flat list.
+// Dragging reorders within a column (a real order among "Em curso" modules, say) — dragging
+// across columns to change status stays a click, not a drop target, so there's only one gesture
+// per intent instead of overloading drag with both "reorder" and "change status" at once.
+function applyColumnReorder(allModules: Module[], columnStatus: ModuleStatus, reorderedIds: string[]): string[] {
+  let i = 0;
+  return allModules.map((m) => (m.status === columnStatus ? reorderedIds[i++] : m.id));
+}
+
 function ModuleKanban({
   modules,
   onCycleStatus,
+  onReorder,
   disciplineId,
 }: {
   modules: Module[];
   onCycleStatus: (disciplineId: string, moduleId: string, status: ModuleStatus) => void;
+  onReorder: (disciplineId: string, orderedModuleIds: string[]) => void;
   disciplineId: string;
 }) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const activeMod = modules.find((m) => m.id === active.id);
+    const overMod = modules.find((m) => m.id === over.id);
+    if (!activeMod || !overMod || activeMod.status !== overMod.status) return; // only within-column reorder
+    const column = modules.filter((m) => m.status === activeMod.status);
+    const oldIndex = column.findIndex((m) => m.id === active.id);
+    const newIndex = column.findIndex((m) => m.id === over.id);
+    const reorderedColumn = arrayMove(column, oldIndex, newIndex).map((m) => m.id);
+    onReorder(disciplineId, applyColumnReorder(modules, activeMod.status, reorderedColumn));
+  }
+
   return (
-    <div className="grid grid-cols-3 gap-1.5">
-      {KANBAN_COLUMNS.map((col) => {
-        const items = modules.filter((m) => m.status === col.status);
-        return (
-          <div key={col.status} className="min-w-0 rounded-md bg-card2 p-1">
-            <div className="mb-1 flex items-center justify-between px-0.5">
-              <span className="text-[9px] font-semibold uppercase tracking-wide text-muted">{col.label}</span>
-              <span className="font-mono text-[9px] text-muted">{items.length}</span>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <div className="grid grid-cols-3 gap-1.5">
+        {KANBAN_COLUMNS.map((col) => {
+          const items = modules.filter((m) => m.status === col.status);
+          return (
+            <div key={col.status} className="min-w-0 rounded-md bg-card2 p-1">
+              <div className="mb-1 flex items-center justify-between px-0.5">
+                <span className="text-[9px] font-semibold uppercase tracking-wide text-muted">{col.label}</span>
+                <span className="font-mono text-[9px] text-muted">{items.length}</span>
+              </div>
+              <SortableContext items={items.map((m) => m.id)} strategy={verticalListSortingStrategy}>
+                <div className="flex flex-col gap-1">
+                  {items.map((m) => (
+                    <SortableItem key={m.id} id={m.id}>
+                      {({ attributes, listeners }) => (
+                        <button
+                          type="button"
+                          onClick={() => onCycleStatus(disciplineId, m.id, nextModuleStatus(m.status))}
+                          title={`${m.name} — clique para mudar status, arraste pra reordenar`}
+                          className={`flex w-full items-center gap-1 truncate rounded px-1 py-1 text-left text-[10px] leading-tight cursor-pointer ${moduleStatusClasses(m.status)}`}
+                        >
+                          <span
+                            {...attributes}
+                            {...listeners}
+                            onClick={(e) => e.stopPropagation()}
+                            className="shrink-0 cursor-grab active:cursor-grabbing touch-none"
+                          >
+                            <GripVertical className="w-3 h-3 opacity-60" strokeWidth={2} />
+                          </span>
+                          <span className="truncate">{m.name}</span>
+                        </button>
+                      )}
+                    </SortableItem>
+                  ))}
+                  {items.length === 0 && <div className="px-0.5 py-1 text-[9px] text-muted">—</div>}
+                </div>
+              </SortableContext>
             </div>
-            <div className="flex flex-col gap-1">
-              {items.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => onCycleStatus(disciplineId, m.id, nextModuleStatus(m.status))}
-                  title={`${m.name} — clique para mudar status`}
-                  className={`truncate rounded px-1 py-1 text-left text-[10px] leading-tight cursor-pointer ${moduleStatusClasses(m.status)}`}
-                >
-                  {m.name}
-                </button>
-              ))}
-              {items.length === 0 && <div className="px-0.5 py-1 text-[9px] text-muted">—</div>}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+    </DndContext>
   );
 }
 
@@ -175,6 +216,7 @@ export function DisciplinesClient({
     updateModule,
     addModule,
     removeModule,
+    reorderModules,
     addEvaluation,
     removeEvaluation,
   } = useDisciplines(initialDisciplines);
@@ -327,6 +369,15 @@ export function DisciplinesClient({
 
   function DisciplineCard({ d }: { d: Discipline }) {
     const modules = d.modules ?? [];
+    const moduleSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+    function handleModuleDragEnd(event: DragEndEvent) {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const oldIndex = modules.findIndex((m) => m.id === active.id);
+      const newIndex = modules.findIndex((m) => m.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+      reorderModules(d.id, arrayMove(modules, oldIndex, newIndex).map((m) => m.id));
+    }
     const nextEvalDate = nearestEvaluationDate(d);
     const daysLeft = daysUntil(nextEvalDate);
     const eta = calcETA(modules, d.horas_semana);
@@ -554,37 +605,56 @@ export function DisciplinesClient({
               </div>
 
               <div className="border-t border-border pt-2 flex flex-col gap-1">
-                <label className="text-[9px] uppercase tracking-wide text-muted">Módulos</label>
-                {modules.map((m) => (
-                  <div key={m.id} className="flex items-center gap-1.5">
-                    <div className="flex-1 text-xs text-txt min-w-0">
-                      <InlineEdit value={m.name} onSave={(v) => updateModule(d.id, m.id, { name: v })} />
-                    </div>
-                    <span
-                      onClick={() => updateModuleStatus(d.id, m.id, nextModuleStatus(m.status))}
-                      title="Clique para mudar status"
-                      className={`font-mono text-[9px] px-1 py-0.5 rounded cursor-pointer shrink-0 whitespace-nowrap ${moduleStatusClasses(m.status)}`}
-                    >
-                      {moduleStatusLabel(m.status)}
-                    </span>
-                    <input
-                      type="number"
-                      min={1}
-                      defaultValue={m.estimated_hours}
-                      onBlur={(e) => {
-                        const hours = Number(e.target.value) || 1;
-                        if (hours !== m.estimated_hours) updateModule(d.id, m.id, { estimated_hours: hours });
-                      }}
-                      className="bg-card border border-border rounded-md px-1.5 py-0.5 text-[11px] text-txt outline-none focus:border-primary w-14 shrink-0"
-                    />
-                    <button
-                      onClick={() => removeModule(d.id, m.id)}
-                      className="w-4 h-4 rounded bg-card border border-border text-muted hover:text-danger text-[9px] flex items-center justify-center cursor-pointer shrink-0"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
+                <label className="text-[9px] uppercase tracking-wide text-muted">
+                  Módulos <span className="normal-case text-muted/70">— arraste ⠿ pra reordenar</span>
+                </label>
+                <DndContext sensors={moduleSensors} collisionDetection={closestCenter} onDragEnd={handleModuleDragEnd}>
+                  <SortableContext items={modules.map((m) => m.id)} strategy={verticalListSortingStrategy}>
+                    {modules.map((m) => (
+                      <SortableItem key={m.id} id={m.id}>
+                        {({ attributes, listeners }) => (
+                          <div className="flex items-center gap-1.5 bg-card2/40 rounded-md">
+                            <button
+                              type="button"
+                              {...attributes}
+                              {...listeners}
+                              title="Arrastar para reordenar"
+                              className="shrink-0 cursor-grab text-muted hover:text-dim active:cursor-grabbing touch-none"
+                            >
+                              <GripVertical className="w-3.5 h-3.5" strokeWidth={2} />
+                            </button>
+                            <div className="flex-1 text-xs text-txt min-w-0">
+                              <InlineEdit value={m.name} onSave={(v) => updateModule(d.id, m.id, { name: v })} />
+                            </div>
+                            <span
+                              onClick={() => updateModuleStatus(d.id, m.id, nextModuleStatus(m.status))}
+                              title="Clique para mudar status"
+                              className={`font-mono text-[9px] px-1 py-0.5 rounded cursor-pointer shrink-0 whitespace-nowrap ${moduleStatusClasses(m.status)}`}
+                            >
+                              {moduleStatusLabel(m.status)}
+                            </span>
+                            <input
+                              type="number"
+                              min={1}
+                              defaultValue={m.estimated_hours}
+                              onBlur={(e) => {
+                                const hours = Number(e.target.value) || 1;
+                                if (hours !== m.estimated_hours) updateModule(d.id, m.id, { estimated_hours: hours });
+                              }}
+                              className="bg-card border border-border rounded-md px-1.5 py-0.5 text-[11px] text-txt outline-none focus:border-primary w-14 shrink-0"
+                            />
+                            <button
+                              onClick={() => removeModule(d.id, m.id)}
+                              className="w-4 h-4 rounded bg-card border border-border text-muted hover:text-danger text-[9px] flex items-center justify-center cursor-pointer shrink-0"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        )}
+                      </SortableItem>
+                    ))}
+                  </SortableContext>
+                </DndContext>
                 <div className="flex items-center gap-1.5 mt-1">
                   <input
                     value={newModuleForm.name}
@@ -676,7 +746,7 @@ export function DisciplinesClient({
               )}
             </div>
           ) : (
-            <ModuleKanban disciplineId={d.id} modules={modules} onCycleStatus={updateModuleStatus} />
+            <ModuleKanban disciplineId={d.id} modules={modules} onCycleStatus={updateModuleStatus} onReorder={reorderModules} />
           )}
           </>
           )}

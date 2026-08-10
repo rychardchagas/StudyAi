@@ -7,12 +7,12 @@ import toast from "react-hot-toast";
 import { useTimer } from "@/lib/hooks/useTimer";
 import { usePomodoro } from "@/lib/hooks/usePomodoro";
 import { usePomodoroConfig } from "@/lib/hooks/usePomodoroConfig";
-import { useLofiAmbience } from "@/lib/hooks/useLofiAmbience";
-import { parseSpotifyEmbedUrl } from "@/lib/utils/spotifyEmbed";
+import { usePomodoroRoundLogger } from "@/lib/hooks/usePomodoroRoundLogger";
 import { Button } from "@/components/ui/Button";
 import { Tip } from "@/components/ui/Tip";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PomodoroSettingsPanel } from "@/components/shared/PomodoroSettingsPanel";
+import { MusicPanel } from "@/components/shared/MusicPanel";
 import { Target } from "lucide-react";
 import { sendToOrchestrator } from "@/lib/agents/orchestrator";
 import { cn } from "@/lib/utils/cn";
@@ -94,82 +94,7 @@ export function SessionClient() {
     pomodoro.clearTransition();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pomodoro.justTransitioned]);
-
-  // Background music — lofi ambience (generated locally, no external file/stream) by default,
-  // swappable for the student's own Spotify playlist. Configurable right here (not just in
-  // Settings → Sessão) so it's a one-click edit without leaving the session, like a Notion widget.
-  const lofi = useLofiAmbience();
-  const [musicEnabled, setMusicEnabled] = useState(true);
-  const [musicSource, setMusicSource] = useState<"lofi" | "spotify">("lofi");
-  const [spotifyRawUrl, setSpotifyRawUrl] = useState("");
-  const [spotifyEmbedUrl, setSpotifyEmbedUrl] = useState<string | null>(null);
-  const [editingSpotify, setEditingSpotify] = useState(false);
-  const [spotifyInput, setSpotifyInput] = useState("");
-  const [savingSpotify, setSavingSpotify] = useState(false);
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/api/profile");
-        if (!res.ok) return;
-        const profile = await res.json();
-        const raw = profile?.preferences?.pomodoro?.spotifyUrl;
-        if (typeof raw === "string" && raw.trim()) {
-          setSpotifyRawUrl(raw);
-          setSpotifyEmbedUrl(parseSpotifyEmbedUrl(raw));
-        }
-      } catch {
-        // no music panel change on failure — lofi source stays the default
-      }
-    })();
-  }, []);
-
-  async function handleSaveSpotifyUrl() {
-    setSavingSpotify(true);
-    try {
-      const trimmed = spotifyInput.trim();
-      // Read the current profile fresh right before writing — preferences is a shared blob (ai
-      // provider config, notifications, availability, etc.) and `pomodoro` itself is shared too
-      // (durations/auto-start live there via usePomodoroConfig) — spread the existing pomodoro
-      // object too, or saving the link would silently wipe whatever timer config was already set.
-      const current = await (await fetch("/api/profile")).json();
-      const res = await fetch("/api/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          preferences: {
-            ...(current.preferences ?? {}),
-            pomodoro: { ...(current.preferences?.pomodoro ?? {}), spotifyUrl: trimmed },
-          },
-        }),
-      });
-      if (!res.ok) throw new Error("save failed");
-      setSpotifyRawUrl(trimmed);
-      const embed = parseSpotifyEmbedUrl(trimmed);
-      setSpotifyEmbedUrl(embed);
-      setEditingSpotify(false);
-      if (embed) {
-        setMusicSource("spotify");
-        toast.success("Playlist salva.");
-      } else if (trimmed) {
-        toast.error("Link salvo, mas não reconheci como um link do Spotify — confira e tente de novo.");
-      } else {
-        setMusicSource("lofi");
-        toast.success("Playlist removida — voltando pro lofi.");
-      }
-    } catch {
-      toast.error("Não foi possível salvar o link.");
-    } finally {
-      setSavingSpotify(false);
-    }
-  }
-  useEffect(() => {
-    if (pomodoroMode && activeTimer.running && musicEnabled && musicSource === "lofi") {
-      lofi.start();
-    } else {
-      lofi.stop();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pomodoroMode, activeTimer.running, musicEnabled, musicSource]);
+  usePomodoroRoundLogger(pomodoro.justTransitioned, pomodoroConfig.workMinutes);
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [focusMode, setFocusMode] = useState(false);
@@ -815,139 +740,9 @@ export function SessionClient() {
             </div>
           </div>
 
-          {/* Música — lofi local por padrão, playlist do Spotify se configurada. Só aparece com
-              o Modo Pomodoro ativo (mesma condição de antes, só mudou de coluna). */}
-          {pomodoroMode && (
-            <div className="mt-2.5 rounded-xl border border-border bg-card p-3">
-              <div className="mb-1.5 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                  {spotifyEmbedUrl && (
-                    <div className="flex overflow-hidden rounded-md border border-border">
-                      <button
-                        type="button"
-                        onClick={() => setMusicSource("lofi")}
-                        className={cn(
-                          "px-2 py-0.5 font-mono text-[10px]",
-                          musicSource === "lofi" ? "bg-primary/15 text-primary" : "bg-transparent text-dim"
-                        )}
-                      >
-                        🎵 Lofi
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMusicSource("spotify")}
-                        className={cn(
-                          "px-2 py-0.5 font-mono text-[10px]",
-                          musicSource === "spotify" ? "bg-primary/15 text-primary" : "bg-transparent text-dim"
-                        )}
-                      >
-                        🎧 Spotify
-                      </button>
-                    </div>
-                  )}
-                  {!spotifyEmbedUrl && <span className="font-mono text-[10px] text-dim">🎵 Lofi ambiente</span>}
-                </div>
-                <div className="flex items-center gap-2">
-                  {!editingSpotify && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSpotifyInput(spotifyRawUrl);
-                        setEditingSpotify(true);
-                      }}
-                      title={spotifyEmbedUrl ? "Editar link do Spotify" : "Usar playlist do Spotify"}
-                      className="font-mono text-[10px] text-dim hover:text-txt"
-                    >
-                      {spotifyEmbedUrl ? "✏️" : "+ Spotify"}
-                    </button>
-                  )}
-                  {!editingSpotify && musicSource === "lofi" && (
-                    <button
-                      type="button"
-                      onClick={() => setMusicEnabled((v) => !v)}
-                      title={musicEnabled ? "Desligar música" : "Ligar música"}
-                      className="font-mono text-[10px] text-dim hover:text-txt"
-                    >
-                      {musicEnabled ? "🔊" : "🔇"}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {editingSpotify ? (
-                <div>
-                  <div className="flex gap-1.5">
-                    <input
-                      autoFocus
-                      type="text"
-                      value={spotifyInput}
-                      onChange={(e) => setSpotifyInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleSaveSpotifyUrl();
-                        if (e.key === "Escape") setEditingSpotify(false);
-                      }}
-                      placeholder="https://open.spotify.com/playlist/..."
-                      className="min-w-0 flex-1 rounded-md border border-border bg-card2 px-2 py-1 font-mono text-[10px] text-txt outline-none focus:border-primary/50"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSaveSpotifyUrl}
-                      disabled={savingSpotify}
-                      className="rounded-md bg-primary px-2 py-1 font-mono text-[10px] font-semibold text-bg"
-                    >
-                      {savingSpotify ? "..." : "Salvar"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingSpotify(false)}
-                      className="rounded-md border border-border px-2 py-1 font-mono text-[10px] text-dim"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                  {spotifyInput.trim() && (
-                    <p className={`mt-1 text-[10px] ${parseSpotifyEmbedUrl(spotifyInput) ? "text-success" : "text-danger"}`}>
-                      {parseSpotifyEmbedUrl(spotifyInput) ? "✓ Link válido" : "✗ Não reconheci como link do Spotify"}
-                    </p>
-                  )}
-                </div>
-              ) : musicSource === "lofi" ? (
-                <>
-                  {musicEnabled && (
-                    <input
-                      type="range"
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      defaultValue={0.3}
-                      onChange={(e) => lofi.setVolume(Number(e.target.value))}
-                      className="w-full accent-primary"
-                    />
-                  )}
-                  <p className="text-[10px] text-muted">
-                    Ambiente sonoro gerado localmente — toca enquanto o timer de foco/pausa estiver
-                    rodando.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <iframe
-                    title="Player do Spotify"
-                    src={spotifyEmbedUrl ?? undefined}
-                    width="100%"
-                    height="152"
-                    style={{ borderRadius: 8, border: "none" }}
-                    allow="autoplay; encrypted-media; clipboard-write; fullscreen; picture-in-picture"
-                    loading="lazy"
-                  />
-                  <p className="mt-1 text-[10px] text-muted">
-                    Pode ser preciso apertar play uma vez aqui dentro — o navegador nem sempre
-                    libera autoplay para o player embutido.
-                  </p>
-                </>
-              )}
-            </div>
-          )}
+          {/* Só aparece com o Modo Pomodoro ativo (mesma condição de antes, só mudou de coluna
+              e virou o componente compartilhado com a aba /pomodoro standalone). */}
+          {pomodoroMode && <MusicPanel active={activeTimer.running} className="mt-2.5" />}
         </div>
       </div>
     </div>

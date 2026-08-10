@@ -23,6 +23,9 @@ importers:
       '@dnd-kit/sortable':
         specifier: ^8.0.0
         version: 8.0.0(@dnd-kit/core@6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
+      '@dnd-kit/utilities':
+        specifier: ^3.2.2
+        version: 3.2.2(react@18.3.1)
       ai:
         specifier: ^3.3.0
         version: 3.4.33(openai@4.104.0(zod@3.25.76))(react@18.3.1)(sswr@2.2.0(svelte@5.56.8(@typescript-eslint/types@8.65.0)))(svelte@5.56.8(@typescript-eslint/types@8.65.0))(vue@3.5.40(typescript@5.9.3))(zod@3.25.76)

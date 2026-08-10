@@ -7,13 +7,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import { GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { SchedGrid } from "@/components/shared/SchedGrid";
+import { SortableItem } from "@/components/shared/SortableItem";
 import { DAYS_LABELS, SLOT_LABELS } from "@/lib/utils/constants";
 import { detectPreferredPeriods, applyPeriodToSlots, type DayPeriod, type DetectedPeriod } from "@/lib/utils/timePreference";
 import type { Discipline, Priority, Profile } from "@/types";
 
 interface ModuleDraft {
+  // Client-only stable id for drag-to-reorder (dnd-kit needs one, array index isn't stable
+  // across reorders) — never sent to the API; handleFinish's submission mapping picks fields
+  // explicitly, so this is dropped there naturally, same as it already does for other UI-only
+  // state on this draft type.
+  _key: string;
   name: string;
   estimated_hours: number;
   topics?: string[];
@@ -75,6 +84,7 @@ export function OnboardingClient() {
   const [importingEmentas, setImportingEmentas] = useState(false);
   const [moduleKeywords, setModuleKeywords] = useState("");
   const ementaInputRef = useRef<HTMLInputElement>(null);
+  const moduleDragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   // Step 4 — availability
   const [slots, setSlots] = useState<Record<string, boolean>>(defaultSlots());
@@ -133,7 +143,9 @@ export function OnboardingClient() {
   const addModule = (disciplineIndex: number) => {
     setDisciplines((prev) =>
       prev.map((d, i) =>
-        i === disciplineIndex ? { ...d, modules: [...d.modules, { name: "", estimated_hours: 2 }] } : d
+        i === disciplineIndex
+          ? { ...d, modules: [...d.modules, { _key: crypto.randomUUID(), name: "", estimated_hours: 2 }] }
+          : d
       )
     );
   };
@@ -145,6 +157,19 @@ export function OnboardingClient() {
           ? { ...d, modules: d.modules.map((m, mi) => (mi === moduleIndex ? { ...m, ...patch } : m)) }
           : d
       )
+    );
+  };
+
+  // Nothing's persisted yet at this step — modules are just drafts held in this component's own
+  // state until "Concluir" submits them (in array order) via POST /api/disciplines. Reordering
+  // is purely a local array move, no API round-trip like the equivalent feature in Matérias.
+  const reorderModules = (disciplineIndex: number, orderedKeys: string[]) => {
+    setDisciplines((prev) =>
+      prev.map((d, i) => {
+        if (i !== disciplineIndex) return d;
+        const byKey = new Map(d.modules.map((m) => [m._key, m]));
+        return { ...d, modules: orderedKeys.map((k) => byKey.get(k)).filter((m): m is ModuleDraft => !!m) };
+      })
     );
   };
 
@@ -183,7 +208,7 @@ export function OnboardingClient() {
           exam_date: "",
           modules: (data.modules ?? [])
             .filter((m) => m.name?.trim())
-            .map((m) => ({ name: m.name.trim(), estimated_hours: m.estimatedHours || 2, topics: m.topics })),
+            .map((m) => ({ _key: crypto.randomUUID(), name: m.name.trim(), estimated_hours: m.estimatedHours || 2, topics: m.topics })),
         });
       } catch (error) {
         console.error("Failed to import ementa", file.name, error);
@@ -490,35 +515,64 @@ export function OnboardingClient() {
                           <div key={di} className="bg-card border border-border rounded-lg p-3">
                             <div className="text-sm font-semibold text-txt mb-2">{d.name}</div>
                             {d.modules.length > 0 && (
-                              <div className="space-y-2 mb-2">
-                                {d.modules.map((m, mi) => (
-                                  <div key={mi} className="flex items-center gap-2">
-                                    <input
-                                      className={`${inputBaseCls} flex-1 min-w-0`}
-                                      placeholder="Nome do módulo/capítulo"
-                                      value={m.name}
-                                      onChange={(e) => updateModule(di, mi, { name: e.target.value })}
-                                    />
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      title="Horas estimadas"
-                                      className={`${inputBaseCls} w-20 shrink-0`}
-                                      value={m.estimated_hours}
-                                      onChange={(e) =>
-                                        updateModule(di, mi, { estimated_hours: Number(e.target.value) })
-                                      }
-                                    />
-                                    <button
-                                      onClick={() => removeModule(di, mi)}
-                                      title="Remover módulo"
-                                      className="text-muted hover:text-danger text-lg leading-none px-1.5 cursor-pointer"
-                                    >
-                                      ×
-                                    </button>
+                              <DndContext
+                                sensors={moduleDragSensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={(event) => {
+                                  const { active, over } = event;
+                                  if (!over || active.id === over.id) return;
+                                  const keys = d.modules.map((m) => m._key);
+                                  const oldIndex = keys.indexOf(String(active.id));
+                                  const newIndex = keys.indexOf(String(over.id));
+                                  if (oldIndex === -1 || newIndex === -1) return;
+                                  reorderModules(di, arrayMove(keys, oldIndex, newIndex));
+                                }}
+                              >
+                                <SortableContext items={d.modules.map((m) => m._key)} strategy={verticalListSortingStrategy}>
+                                  <div className="space-y-2 mb-2">
+                                    {d.modules.map((m, mi) => (
+                                      <SortableItem key={m._key} id={m._key}>
+                                        {({ attributes, listeners }) => (
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              type="button"
+                                              {...attributes}
+                                              {...listeners}
+                                              title="Arrastar para reordenar"
+                                              className="shrink-0 cursor-grab text-muted hover:text-dim active:cursor-grabbing touch-none"
+                                            >
+                                              <GripVertical className="w-3.5 h-3.5" strokeWidth={2} />
+                                            </button>
+                                            <input
+                                              className={`${inputBaseCls} flex-1 min-w-0`}
+                                              placeholder="Nome do módulo/capítulo"
+                                              value={m.name}
+                                              onChange={(e) => updateModule(di, mi, { name: e.target.value })}
+                                            />
+                                            <input
+                                              type="number"
+                                              min={0}
+                                              title="Horas estimadas"
+                                              className={`${inputBaseCls} w-20 shrink-0`}
+                                              value={m.estimated_hours}
+                                              onChange={(e) =>
+                                                updateModule(di, mi, { estimated_hours: Number(e.target.value) })
+                                              }
+                                            />
+                                            <button
+                                              onClick={() => removeModule(di, mi)}
+                                              title="Remover módulo"
+                                              className="text-muted hover:text-danger text-lg leading-none px-1.5 cursor-pointer"
+                                            >
+                                              ×
+                                            </button>
+                                          </div>
+                                        )}
+                                      </SortableItem>
+                                    ))}
                                   </div>
-                                ))}
-                              </div>
+                                </SortableContext>
+                              </DndContext>
                             )}
                             <button
                               onClick={() => addModule(di)}

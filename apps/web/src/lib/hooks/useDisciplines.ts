@@ -144,6 +144,30 @@ export function useDisciplines(initial: Discipline[]) {
     [router]
   );
 
+  // Optimistic reorder — the list/Kanban view already reflects the new order before the network
+  // round-trip finishes, and reorderModules() on the server rewrites order_index for the whole
+  // discipline in one go (see local-db.ts) rather than one PATCH per moved module.
+  const reorderModules = useCallback(async (disciplineId: string, orderedModuleIds: string[]) => {
+    setDisciplines((prev) =>
+      prev.map((d) => {
+        if (d.id !== disciplineId) return d;
+        const byId = new Map((d.modules ?? []).map((m) => [m.id, m]));
+        const reordered = orderedModuleIds.map((id) => byId.get(id)).filter((m): m is Module => !!m);
+        return { ...d, modules: reordered };
+      })
+    );
+    try {
+      const res = await fetch("/api/modules/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ discipline_id: disciplineId, module_ids: orderedModuleIds }),
+      });
+      if (!res.ok) throw new Error("request failed");
+    } catch {
+      toast.error("Não foi possível salvar a nova ordem — tente de novo.");
+    }
+  }, []);
+
   const removeModule = useCallback(async (disciplineId: string, moduleId: string) => {
     setDisciplines((prev) =>
       prev.map((d) =>
@@ -206,6 +230,7 @@ export function useDisciplines(initial: Discipline[]) {
     updateModule,
     addModule,
     removeModule,
+    reorderModules,
     addEvaluation,
     removeEvaluation,
   };

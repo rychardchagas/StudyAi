@@ -501,7 +501,10 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
             <div className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-2 pb-1.5 border-b border-border">
               Mapa de atividade — {HEATMAP_WEEKS_BACK} semanas
             </div>
-            <ActivityHeatmap sessions={initialSessions} weeksBack={HEATMAP_WEEKS_BACK} />
+            <ActivityHeatmap
+              dates={initialSessions.filter((s) => s.completed).map((s) => s.completed_at ?? s.scheduled_at)}
+              weeksBack={HEATMAP_WEEKS_BACK}
+            />
           </div>
 
           <div className="bg-card border border-border rounded-lg p-3">

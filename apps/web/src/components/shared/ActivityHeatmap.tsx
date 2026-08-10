@@ -1,10 +1,12 @@
 "use client";
 import { useMemo } from "react";
 import { startOfWeekMonday } from "@/lib/utils/constants";
-import type { StudySession } from "@/types";
 
 interface ActivityHeatmapProps {
-  sessions: StudySession[];
+  /** One entry per occurrence of activity (a completed session, a completed Pomodoro round,
+   * etc.) — any parseable date string. Generic on purpose so this one grid can back both the
+   * study-session heatmap and the Pomodoro rounds heatmap instead of duplicating the grid. */
+  dates: string[];
   weeksBack?: number;
 }
 
@@ -27,12 +29,10 @@ function heatLevel(count: number): number {
   return 4;
 }
 
-export function ActivityHeatmap({ sessions, weeksBack = 12 }: ActivityHeatmapProps) {
+export function ActivityHeatmap({ dates, weeksBack = 12 }: ActivityHeatmapProps) {
   const weeks = useMemo(() => {
     const countsByDay = new Map<string, number>();
-    for (const s of sessions) {
-      if (!s.completed) continue;
-      const at = s.completed_at ?? s.scheduled_at;
+    for (const at of dates) {
       if (!at) continue;
       const key = new Date(at).toDateString();
       countsByDay.set(key, (countsByDay.get(key) ?? 0) + 1);
@@ -52,7 +52,7 @@ export function ActivityHeatmap({ sessions, weeksBack = 12 }: ActivityHeatmapPro
       result.push(levels);
     }
     return result;
-  }, [sessions, weeksBack]);
+  }, [dates, weeksBack]);
 
   return (
     <div>

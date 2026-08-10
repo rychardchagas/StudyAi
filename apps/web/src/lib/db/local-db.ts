@@ -1,7 +1,7 @@
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import fs from "fs";
 import path from "path";
-import type { Discipline, DisciplineGroup, Evaluation, Flashcard, Module, Profile, StudySession } from "@/types";
+import type { Discipline, DisciplineGroup, Evaluation, Flashcard, Module, PomodoroRound, Profile, StudySession } from "@/types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "studyai.db");
@@ -289,6 +289,10 @@ export function resetAllData(): { disciplines: number; modules: number; sessions
   db.exec("DELETE FROM modules");
   db.exec("DELETE FROM disciplines");
   db.exec("DELETE FROM discipline_groups");
+  // Not counted in the return value (resetAllData's contract is about matérias/módulos/sessões) —
+  // Pomodoro rounds are independent of any discipline and "apagar tudo" already means "start
+  // over" broadly enough to include them.
+  db.exec("DELETE FROM pomodoro_rounds");
   return counts;
 }
 
@@ -353,6 +357,23 @@ export function updateModule(id: string, rawUpdates: Partial<Module>): Module {
   return parseModule(toPlain<Record<string, unknown>>(db.prepare(`SELECT * FROM modules WHERE id = ?`).get(id)));
 }
 
+// Bulk-assigns order_index = position in the given array, scoped to disciplineId so a caller
+// can't accidentally touch another matéria's modules by passing the wrong id list. Used by the
+// drag-and-drop reorder UI (Matérias list/Kanban, Onboarding) — one PATCH-equivalent per moved
+// module would be simpler per call site, but this keeps "what order_index should X have" logic
+// in one place instead of every screen recomputing indices itself.
+export function reorderModules(disciplineId: string, orderedModuleIds: string[]): Module[] {
+  const db = getDb();
+  const stmt = db.prepare(`UPDATE modules SET order_index = @order_index, updated_at = @updated_at WHERE id = @id AND discipline_id = @discipline_id`);
+  const updatedAt = now();
+  orderedModuleIds.forEach((id, index) => {
+    stmt.run(bind({ id, discipline_id: disciplineId, order_index: index, updated_at: updatedAt }));
+  });
+  return toPlainArray<Record<string, unknown>>(
+    db.prepare(`SELECT * FROM modules WHERE discipline_id = ? ORDER BY order_index ASC`).all(disciplineId)
+  ).map(parseModule);
+}
+
 // --- Evaluations (prova 1, trabalho, prova final...) ---
 
 export function createEvaluation(input: { discipline_id: string; name: string; date: string; weight?: number | null }): Evaluation {
@@ -379,6 +400,23 @@ export function updateEvaluation(id: string, rawUpdates: Partial<Evaluation>): E
 
 export function deleteEvaluation(id: string): void {
   getDb().prepare(`DELETE FROM evaluations WHERE id = ?`).run(id);
+}
+
+// --- Pomodoro rounds (Insights on /pomodoro) ---
+
+export function createPomodoroRound(input: { completed_at: string; focus_minutes: number }): PomodoroRound {
+  const db = getDb();
+  const id = newId();
+  db.prepare(
+    `INSERT INTO pomodoro_rounds (id, completed_at, focus_minutes) VALUES (@id, @completed_at, @focus_minutes)`
+  ).run(bind({ id, completed_at: input.completed_at, focus_minutes: input.focus_minutes }));
+  return toPlain<PomodoroRound>(db.prepare(`SELECT * FROM pomodoro_rounds WHERE id = ?`).get(id));
+}
+
+export function listPomodoroRounds(): PomodoroRound[] {
+  return toPlainArray<PomodoroRound>(
+    getDb().prepare(`SELECT * FROM pomodoro_rounds ORDER BY completed_at ASC`).all()
+  );
 }
 
 // --- Study sessions ---

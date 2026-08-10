@@ -28,6 +28,21 @@ export const evaluationPatchSchema = z
   })
   .strict();
 
+export const pomodoroRoundCreateSchema = z
+  .object({
+    completed_at: z.string().min(1),
+    // 180 matches the cap already enforced client-side in PomodoroSettingsPanel.
+    focus_minutes: z.number().int().min(1).max(180),
+  })
+  .strict();
+
+export const moduleReorderSchema = z
+  .object({
+    discipline_id: z.string().min(1),
+    module_ids: z.array(z.string().min(1)).min(1).max(200),
+  })
+  .strict();
+
 export const disciplineCreateSchema = z
   .object({
     name: z.string().min(1).max(200),

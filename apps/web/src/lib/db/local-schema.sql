@@ -82,6 +82,16 @@ CREATE TABLE IF NOT EXISTS evaluations (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
+-- One row per completed Pomodoro *work* round (breaks aren't logged) — powers the Insights
+-- sub-tabs on /pomodoro (Hoje/Semana/Histórico), independent of study_sessions since a standalone
+-- Pomodoro round has no discipline_id to attach to.
+CREATE TABLE IF NOT EXISTS pomodoro_rounds (
+  id TEXT PRIMARY KEY,
+  completed_at TEXT NOT NULL,
+  focus_minutes INTEGER NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS flashcards (
   id TEXT PRIMARY KEY,
   module_id TEXT NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
@@ -101,3 +111,4 @@ CREATE INDEX IF NOT EXISTS idx_sessions_discipline ON study_sessions(discipline_
 CREATE INDEX IF NOT EXISTS idx_modules_discipline ON modules(discipline_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_flashcards_due ON flashcards(due_date);
 CREATE INDEX IF NOT EXISTS idx_evaluations_discipline ON evaluations(discipline_id, date);
+CREATE INDEX IF NOT EXISTS idx_pomodoro_rounds_date ON pomodoro_rounds(completed_at);

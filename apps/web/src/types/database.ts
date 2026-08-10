@@ -55,6 +55,15 @@ export interface Evaluation {
   created_at: string;
 }
 
+// One completed Pomodoro *work* round — powers the Insights sub-tabs on /pomodoro. No
+// discipline_id: a standalone Pomodoro round (see PomodoroClient) has no matéria to attach to.
+export interface PomodoroRound {
+  id: string;
+  completed_at: string;
+  focus_minutes: number;
+  created_at: string;
+}
+
 export interface Module {
   id: string;
   discipline_id: string;
