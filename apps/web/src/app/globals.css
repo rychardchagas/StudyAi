@@ -31,6 +31,62 @@
   --secondary: 78% 0.13 148;
 }
 
+/* Alternate color templates — same 11-token schema as :root above (default, unnamed = "Notion"),
+   selected via [data-theme] on <html> (see useThemePreference.ts). Tokens sourced from real
+   design-system swatches in nexu-io/open-design's design-systems/ directory (accurate sRGB ->
+   OKLCH math, not eyeballed — same methodology as the Notion palette above), then adjusted so
+   every text-role token (txt/dim/muted/primary/secondary) clears WCAG AA (4.5:1) against all four
+   surface levels of its own theme — verified numerically, not assumed. */
+
+/* Linear — near-black canvas, signature indigo accent (#5e6ad2), Linear's own green as secondary. */
+[data-theme="linear"] {
+  --bg: 14% 0.003 246;
+  --surface: 18% 0.003 246;
+  --card: 22% 0.003 246;
+  --card2: 26% 0.003 246;
+  --border: 97% 0.001 197 / 0.08;
+  --border2: 97% 0.001 197 / 0.15;
+  --txt: 97% 0.001 197;
+  --dim: 80% 0.01 261;
+  --muted: 65% 0.015 262;
+  --primary: 76% 0.15 275;
+  --secondary: 76% 0.15 147;
+}
+
+/* Raycast — near-black blue-tinted void, signature red accent (#FF6363), real Raycast blue as
+   secondary (an authentic red/blue duo, not the green-secondary convention of the other themes). */
+[data-theme="raycast"] {
+  --bg: 13% 0.004 262;
+  --surface: 17% 0.004 262;
+  --card: 21% 0.004 262;
+  --card2: 25% 0.004 262;
+  --border: 97% 0 90 / 0.08;
+  --border2: 97% 0 90 / 0.15;
+  --txt: 97% 0 90;
+  --dim: 80% 0.005 280;
+  --muted: 69% 0.001 286;
+  --primary: 72% 0.19 23;
+  --secondary: 78% 0.11 238;
+}
+
+/* Claude (Anthropic) — the one light theme: warm parchment canvas, terracotta accent (#c96442).
+   Elevation runs the opposite direction from the dark themes above (card/card2 get progressively
+   darker/warmer, not lighter, toward the real Claude "surface-warm" tone) — going lighter than an
+   already near-white bg has no headroom to read as a distinct card. */
+[data-theme="claude"] {
+  --bg: 97% 0.009 100;
+  --surface: 96% 0.008 98;
+  --card: 94% 0.012 97;
+  --card2: 92% 0.014 97;
+  --border: 20% 0.005 100 / 0.08;
+  --border2: 20% 0.005 100 / 0.15;
+  --txt: 19% 0.002 107;
+  --dim: 36% 0.005 107;
+  --muted: 48% 0.006 95;
+  --primary: 46% 0.14 39;
+  --secondary: 44% 0.16 149;
+}
+
 * { box-sizing: border-box; }
 
 body {

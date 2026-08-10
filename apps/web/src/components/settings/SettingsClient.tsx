@@ -9,13 +9,14 @@ import { SchedGrid } from "@/components/shared/SchedGrid";
 import { DAYS_LABELS, SLOT_LABELS } from "@/lib/utils/constants";
 import { clearActiveSession } from "@/lib/utils/activeSession";
 import { parseSpotifyEmbedUrl } from "@/lib/utils/spotifyEmbed";
+import { useThemePreference, THEME_OPTIONS, type ThemeId } from "@/lib/hooks/useThemePreference";
 import type { Profile } from "@/types";
 
 interface SettingsClientProps {
   initialProfile: Profile;
 }
 
-type SettingsTab = "profile" | "notif" | "horarios" | "ia" | "sessao";
+type SettingsTab = "profile" | "notif" | "horarios" | "ia" | "sessao" | "aparencia";
 
 const TABS: [SettingsTab, string][] = [
   ["profile", "Perfil"],
@@ -23,7 +24,17 @@ const TABS: [SettingsTab, string][] = [
   ["horarios", "Horários"],
   ["ia", "IA & Agentes"],
   ["sessao", "Sessão"],
+  ["aparencia", "Aparência"],
 ];
+
+// Small swatch preview per theme — pulled from the same OKLCH values in globals.css so the picker
+// never drifts out of sync with what selecting it actually applies.
+const THEME_SWATCHES: Record<ThemeId, { bg: string; card: string; primary: string; secondary: string }> = {
+  notion: { bg: "oklch(17% 0.02 55)", card: "oklch(23% 0.02 55)", primary: "oklch(78% 0.14 253)", secondary: "oklch(78% 0.13 148)" },
+  linear: { bg: "oklch(14% 0.003 246)", card: "oklch(22% 0.003 246)", primary: "oklch(76% 0.15 275)", secondary: "oklch(76% 0.15 147)" },
+  raycast: { bg: "oklch(13% 0.004 262)", card: "oklch(21% 0.004 262)", primary: "oklch(72% 0.19 23)", secondary: "oklch(78% 0.11 238)" },
+  claude: { bg: "oklch(97% 0.009 100)", card: "oklch(94% 0.012 97)", primary: "oklch(46% 0.14 39)", secondary: "oklch(44% 0.16 149)" },
+};
 
 const NOTIFICATION_ITEMS: { key: string; label: string; description: string }[] = [
   { key: "sessionReminder", label: "Lembrete de sessão", description: "Notificar 10 min antes de cada bloco" },
@@ -150,6 +161,10 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
   // Sessão — música de fundo do Pomodoro
   const savedPomodoro = (basePreferences.pomodoro ?? {}) as { spotifyUrl?: string };
   const [spotifyUrl, setSpotifyUrl] = useState(() => savedPomodoro.spotifyUrl ?? "");
+
+  // Aparência — aplica e persiste na hora (não espera o botão "Salvar alterações" do topo, que
+  // cobre os outros campos do formulário), igual ao padrão já usado no picker de tema do sistema.
+  const { theme, setTheme } = useThemePreference();
 
   function applyPreset(preset: ProviderPreset) {
     setLlmBaseUrl(preset.baseURL);
@@ -593,6 +608,48 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
                 logado no Spotify no navegador ouve a faixa completa; sem login, o player toca uma
                 prévia com anúncios (comportamento padrão do widget público do próprio Spotify).
               </p>
+            </div>
+          )}
+
+          {activeTab === "aparencia" && (
+            <div>
+              <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-muted mb-2.5">
+                Template de cores
+              </div>
+              <p className="text-[11px] text-muted mb-3 leading-relaxed">
+                Muda a paleta de cores do app inteiro na hora — não precisa clicar em &quot;Salvar
+                alterações&quot;. Cada template vem de um sistema de design real (via nexu-io/open-design).
+              </p>
+              <div className="grid grid-cols-2 gap-2.5">
+                {THEME_OPTIONS.map((option) => {
+                  const swatch = THEME_SWATCHES[option.id];
+                  const active = theme === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setTheme(option.id)}
+                      className={`text-left rounded-lg border p-3 cursor-pointer transition-colors ${
+                        active ? "border-primary/50 bg-primary/5" : "border-border bg-card hover:border-border2"
+                      }`}
+                    >
+                      <div
+                        className="h-10 rounded-md mb-2 flex items-center gap-1.5 px-2 border border-border/50"
+                        style={{ background: swatch.bg }}
+                      >
+                        <span className="h-3.5 w-3.5 rounded-full" style={{ background: swatch.primary }} />
+                        <span className="h-3.5 w-3.5 rounded-full" style={{ background: swatch.secondary }} />
+                        <span className="h-5 flex-1 rounded" style={{ background: swatch.card }} />
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-medium text-txt">{option.label}</span>
+                        {active && <span className="text-[10px] text-primary font-mono">ATIVO</span>}
+                      </div>
+                      <div className="text-[10px] text-muted mt-0.5">{option.description}</div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

@@ -2,7 +2,15 @@ import type { Metadata } from "next";
 import { Inter, Source_Serif_4, IBM_Plex_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import { UnloadOnClose } from "@/components/shared/UnloadOnClose";
+import { ThemeBootstrap } from "@/components/shared/ThemeBootstrap";
+import { THEME_STORAGE_KEY } from "@/lib/hooks/useThemePreference";
 import "./globals.css";
+
+// Runs before hydration so a saved theme applies with no flash-of-default-theme. Reads only from
+// localStorage (never user input) and checks against a fixed whitelist before touching the DOM.
+const THEME_BOOTSTRAP_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.stringify(
+  THEME_STORAGE_KEY
+)});if(t&&["linear","raycast","claude"].indexOf(t)!==-1){document.documentElement.setAttribute("data-theme",t);}}catch(e){}})();`;
 
 // Sans for UI copy, serif for editorial headings, mono for stats/numbers — each exposed as a
 // CSS variable and wired into the `sans`/`serif`/`mono` keys in tailwind.config.ts.
@@ -37,8 +45,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
+      </head>
       <body className={`${inter.variable} ${sourceSerif.variable} ${plexMono.variable} font-sans`}>
         {children}
+        <ThemeBootstrap />
         <UnloadOnClose />
         <Toaster
           position="bottom-center"
