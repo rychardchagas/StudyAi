@@ -10,8 +10,6 @@ via Ollama por padrão (grátis e privado — nenhum dado sai da sua máquina).
 ![CI](https://github.com/rychardchagas/StudyAi/actions/workflows/ci.yml/badge.svg)
 ![CodeQL](https://github.com/rychardchagas/StudyAi/actions/workflows/codeql.yml/badge.svg)
 
-![Dashboard do StudyAI](docs/screenshots/dashboard.png)
-
 ## Índice
 
 - [O que é](#o-que-é)
@@ -47,8 +45,11 @@ IA. Detalhes completos da arquitetura e do fluxo de geração de calendário:
 ### 📅 Calendário / Dashboard
 Grade semanal com as sessões já distribuídas pelos agentes. Clique num evento para ver detalhes,
 ou em **⚡ Replanejar** para os agentes recalcularem o cronograma. Cartões de estatística no topo
-(sessões da semana, horas planejadas, % de aderência, revisões pendentes) e um assistente de IA
-lateral para conversar sobre o próprio plano.
+(sessões da semana, horas planejadas, % de aderência, revisões pendentes) — com tooltip explicando
+como cada número é calculado — e um assistente de IA lateral para conversar sobre o próprio plano.
+O sino no topo é um centro de notificações real (não decorativo): mostra revisões espaçadas
+realmente vencidas e provas nos próximos 7 dias, direto do que o app já sabe — sem infraestrutura
+de notificação nova por trás.
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
@@ -59,25 +60,41 @@ FSRS. Organize matérias em **grupos** (ex: "Faculdade", "Projeto pessoal") quan
 contextos. Cada matéria pode ter **múltiplas provas/avaliações** cadastradas (nome, data, peso
 opcional) em vez de uma única data — o app sempre usa a mais próxima pra calcular urgência e
 prioridade, com a data antiga (`exam_date`) preservada como fallback pra matérias já existentes.
+Alterne entre visão **Lista** (cards completos) e **Kanban** (módulos em 3 colunas — Pendente/Em
+curso/Feito — com drag-and-drop tanto pra mudar status quanto pra reordenar dentro da coluna).
 
 ![Matérias](docs/screenshots/disciplines.png)
 
 ### ⏱️ Sessão de estudo
-Execução guiada de uma sessão: timer com modo foco (tela cheia) — ou o **modo Pomodoro** (25 min
-de foco / 5 min de pausa, com transição automática e contador de ciclos) — checklist de tarefas e
-exercício de active recall com perguntas geradas pela IA a partir do conteúdo real do módulo
-(quando os tópicos foram cadastrados) e correção certo/errado avaliada pelo LLM. Se você não
-terminar, pode marcar **"Não terminei — retomar depois"**: a sessão conta pra streak/aderência mas
-não gera uma nota de recall falsa, e o módulo continua priorizado nas próximas sessões até ser
-concluído de fato. Uma barra de sessão ativa fica visível em qualquer tela do app enquanto há uma
-sessão em andamento, com atalhos pra continuar ou concluir sem precisar reabrir a tela cheia.
+Execução guiada de uma sessão: timer com modo foco (tela cheia) — ou o **modo Pomodoro**, com
+duração de foco/pausa configurável (ver seção Pomodoro abaixo) — checklist de tarefas e exercício
+de active recall com perguntas geradas pela IA a partir do conteúdo real do módulo (quando os
+tópicos foram cadastrados) e correção em 3 níveis avaliada pelo LLM: **Correto** / **OK**
+(entendimento parcial, mas faltou algo) / **Incorreto**. Se você não terminar, pode marcar
+**"Não terminei — retomar depois"**: a sessão conta pra streak/aderência mas não gera uma nota de
+recall falsa, e o módulo continua priorizado nas próximas sessões até ser concluído de fato. Uma
+barra de sessão ativa fica visível em qualquer tela do app enquanto há uma sessão em andamento,
+com atalhos pra continuar ou concluir sem precisar reabrir a tela cheia.
 
 ![Sessão](docs/screenshots/session.png)
+
+### 🍅 Pomodoro
+Timer de foco independente de qualquer matéria — pode ser usado dentro de uma sessão de estudo ou
+sozinho, pra qualquer bloco de foco. Durações de foco/pausa curta/pausa longa e o intervalo de
+ciclos até a pausa longa são configuráveis (mesmo modelo do pomofocus.io), com auto-início
+opcional da próxima fase. Música de fundo embutida — um ambiente lofi gerado localmente via Web
+Audio API (sem arquivo de áudio, sem streaming) por padrão, ou uma playlist do Spotify sua se
+preferir. Aba própria com histórico (hoje/semana/geral) e streak de dias com pelo menos um ciclo
+completo, separado do streak de sessões de estudo.
+
+![Pomodoro](docs/screenshots/pomodoro.png)
 
 ### 📈 Progresso
 Streak de dias consecutivos, horas estudadas, % de aderência ao plano, mapa de atividade (estilo
 GitHub, 12 semanas), sessões por matéria e insights gerados automaticamente pelo Progress Agent
-sobre seus padrões de estudo.
+sobre seus padrões de estudo. Um cartão de **nível e XP** no topo (ganho por sessão concluída,
+revisão espaçada feita e dia de streak) dá uma camada de progressão de longo prazo por cima das
+métricas — puramente local, sem envio de dado nenhum.
 
 ![Progresso](docs/screenshots/progress.png)
 
@@ -94,8 +111,10 @@ Perfil (nome/bio usados como contexto pela IA), notificações, horários de dis
 descanso** fixo por semana) e a aba **IA & Agentes** — troque de provedor (Ollama local, Groq,
 OpenRouter, ou qualquer endpoint compatível com a API da OpenAI) direto pela UI, sem editar
 `.env.local` nem reiniciar o servidor, com um botão "Testar conexão" que valida a config antes de
-salvar. Zona de risco com "Apagar tudo" (matérias/módulos/sessões/grupos — não afeta perfil nem
-preferências) e "Corrigir progresso" (recalcula o % de conclusão a partir dos módulos reais).
+salvar. A aba **Aparência** troca a paleta de cores do app inteiro na hora — 4 templates prontos
+(Notion, o padrão; Linear; Raycast; e Claude, o único tema claro do app). Zona de risco com
+"Apagar tudo" (matérias/módulos/sessões/grupos — não afeta perfil nem preferências) e "Corrigir
+progresso" (recalcula o % de conclusão a partir dos módulos reais).
 
 ![Configurações](docs/screenshots/settings.png)
 
@@ -117,7 +136,7 @@ já salvos em vez de começar em branco.
 | Camada | Tecnologia |
 |---|---|
 | Frontend | Next.js 15 (App Router) + React 18 + Tailwind CSS |
-| Estado | Hooks customizados por domínio (`useCalendar`, `useAI`, `useTimer`, `useDisciplines`, `useDisciplineGroups`, `usePomodoro`) — sem Redux/Zustand, estado local ao componente ou derivado direto do servidor |
+| Estado | Hooks customizados por domínio (`useCalendar`, `useAI`, `useTimer`, `useDisciplines`, `useDisciplineGroups`, `usePomodoro`/`usePomodoroConfig`, `useThemePreference`, `useLofiAmbience`) — sem Redux/Zustand, estado local ao componente ou derivado direto do servidor |
 | Backend | API Routes do próprio Next.js |
 | IA | Qualquer LLM compatível com a API da OpenAI (Ollama local por padrão) via `openai` SDK, validação de entrada com `zod` |
 | Banco | SQLite local via `node:sqlite` (nativo do Node 22+, zero dependência externa), zero configuração |
@@ -174,11 +193,12 @@ de rodar `pnpm ai:stop`, o consumo pesado de memória se limita sozinho.
    calendário e te leva para o Dashboard.
 2. **Todo dia** → abra o **Calendário**, veja as sessões agendadas para hoje e clique numa delas
    para abrir os detalhes; use **▶ Iniciar sessão** para ir para a tela de **Sessão ativa**.
-3. **Durante a sessão** → siga o checklist, use o modo foco (tecla `F`) ou o modo Pomodoro se
-   quiser tela cheia sem distração, responda o exercício de active recall e conclua a sessão ao
-   final — isso alimenta o histórico usado pelo Progress Agent e pelo FSRS para agendar a próxima
-   revisão. Se não der tempo de terminar, use **"↺ Não terminei — retomar depois"** em vez de
-   forçar uma conclusão com nota de recall inventada.
+3. **Durante a sessão** → siga o checklist, use o modo foco (tecla `F`) ou o modo Pomodoro (com
+   música de fundo, se quiser) para tela cheia sem distração, responda o exercício de active
+   recall e conclua a sessão ao final — isso alimenta o histórico usado pelo Progress Agent e pelo
+   FSRS para agendar a próxima revisão. Se não der tempo de terminar, use
+   **"↺ Não terminei — retomar depois"** em vez de forçar uma conclusão com nota de recall
+   inventada. Prefere um timer solto, sem vincular a uma matéria? Use a aba **Pomodoro**.
 4. **Quando o plano mudar** (nova prova marcada, matéria adicionada, horários mudaram) → vá em
    **Matérias** para editar/adicionar (inclusive múltiplas provas por matéria), ou em
    **Configurações → Horários** para atualizar sua disponibilidade ou seu dia de descanso, depois

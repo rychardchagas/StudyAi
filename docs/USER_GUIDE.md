@@ -153,6 +153,14 @@ arraste/associe disciplinas a ela. É só organização visual — apagar um gru
 disciplinas dele (não apaga as disciplinas), e nenhuma lógica de geração de calendário lê o grupo
 de uma matéria.
 
+## Visão Lista vs. Kanban
+
+No topo de **Matérias**, alterne entre **Lista** (o card completo de cada disciplina, com todos os
+módulos visíveis) e **Kanban** (cada disciplina vira um mini-quadro de 3 colunas — Pendente / Em
+curso / Feito). No Kanban dá pra arrastar um módulo entre colunas pra mudar o status (mesmo efeito
+de clicar no status no modo Lista) e também reordenar módulos dentro da mesma coluna arrastando —
+a ordem afeta só a exibição, não muda peso/prioridade na geração do calendário.
+
 ## Múltiplas provas/avaliações por matéria
 
 Cada disciplina pode ter várias avaliações cadastradas (nome, data, peso opcional) em vez de uma
@@ -177,7 +185,7 @@ pedagógico, por um critério real (não aleatório):
 | 🗺 Mapas Mentais | Sim (critério restrito) | Módulo pendente com 4+ tópicos cadastrados — material com muitos subtópicos interligados se beneficia de organizar antes de praticar |
 | 📐 Aprendizagem por Problemas | Sim (parcial) | Ciclo de módulos "em progresso" — aplicar a um problema real encaixa melhor quando já existe alguma base |
 | 🔀 Interleaving | Não é rotulado como "metodologia da sessão" | O motor *aplica* interleaving na distribuição das sessões (intercala matérias), mas isso é sobre a ordem das sessões, não sobre o que fazer dentro de uma — não aparece como rótulo |
-| ⏱ Pomodoro | Não é atribuída pelo agendador | É uma técnica estrutural (organiza *quando/quanto tempo* estudar), não de conteúdo — disponível como modo de timer opcional dentro de qualquer sessão, independente da metodologia escolhida pra ela |
+| ⏱ Pomodoro | Não é atribuída pelo agendador | É uma técnica estrutural (organiza *quando/quanto tempo* estudar), não de conteúdo — disponível como modo de timer opcional dentro de qualquer sessão (independente da metodologia escolhida pra ela) ou solto na aba própria **Pomodoro** |
 
 Vale abrir a tela Metodologias e ler o passo a passo de cada uma antes de uma sessão — o conteúdo
 lá é completo e fundamentado na base de evidência do projeto (Dunlosky et al. 2013 e outras
@@ -189,17 +197,19 @@ Você chega em uma sessão clicando em um evento no calendário e depois em "▶
 pelo card de uma disciplina). Isso cria o registro da sessão no banco *no momento em que você
 inicia* — não no horário original do slot do calendário.
 
-- **Timer**: play/pause, reset, pular, ou troque pro **modo Pomodoro** (ciclo de 25 min de foco /
-  5 min de pausa, com transição automática e contagem de ciclos completos). Atalho de teclado:
-  `Espaço` (play/pause, segue o modo ativo), `F` (modo foco em tela cheia), `Esc` (sair do modo
-  foco), `→` (próxima pergunta de active recall).
+- **Timer**: play/pause, reset, pular, ou troque pro **modo Pomodoro** (durações configuráveis —
+  ver seção própria abaixo — com transição automática e contagem de ciclos completos). Atalho de
+  teclado: `Espaço` (play/pause, segue o modo ativo), `F` (modo foco em tela cheia), `Esc` (sair do
+  modo foco), `→` (próxima pergunta de active recall).
 - **Checklist**: "Revisar anotações", "Praticar exercícios", "Active recall final" — é só um guia
   visual, não é salvo nem afeta nada além da própria tela.
 - **Active Recall**: se o módulo tem tópicos cadastrados, as 3 perguntas são geradas pela IA com
   base nesse conteúdo real (não genéricas); sem tópicos, ou se a chamada à IA falhar, cai num
   template genérico — a sessão nunca trava esperando a IA. Depois de responder e clicar
-  "Verificar", a resposta é avaliada por IA como certa/incompleta com um feedback curto (se essa
-  chamada falhar, sua resposta continua sendo registrada, só sem o veredito).
+  "Verificar", a resposta é avaliada pela IA em 3 níveis — **✓ Correto** (entendeu bem), **OK**
+  (mostrou entendimento parcial, mas faltou uma parte real da resposta) ou **✗ Incorreto** (vago,
+  vazio ou fora do tópico) — com um feedback curto explicando o veredito (se essa chamada falhar,
+  sua resposta continua sendo registrada, só sem o veredito).
 - **Concluir sessão**: registra a sessão como concluída, aplica o resultado ao FSRS (data da
   próxima revisão daquele módulo é recalculada de verdade a partir da sua autoavaliação de recall)
   e volta ao Dashboard.
@@ -216,6 +226,45 @@ no topo de qualquer outra tela do app enquanto a sessão continua ativa, com ata
 — é a parte da tela com mais evidência de eficácia (veja a skill `study-methodology-mentor` para o
 porquê). O checklist é só apoio; o ganho real de aprendizado está no recall.
 
+## Aba Pomodoro (timer solto, sem vincular a uma matéria)
+
+Diferente do modo Pomodoro dentro de uma sessão (que também conta pro histórico daquela matéria),
+a aba **Pomodoro** na barra lateral é um timer independente — útil pra qualquer bloco de foco,
+dentro ou fora do StudyAI, sem precisar escolher módulo nenhum.
+
+- **Configuração** (ícone de engrenagem): duração do foco, da pausa curta, da pausa longa, e a
+  cada quantos ciclos a pausa longa entra — mesmo modelo do pomofocus.io. Também dá pra ligar
+  auto-início da próxima fase (foco→pausa e pausa→foco sem precisar clicar em play de novo).
+- **Música de fundo**: ligada por padrão com um ambiente lofi gerado localmente (Web Audio API —
+  sem baixar nem transmitir arquivo nenhum), ou troque pra uma playlist do Spotify colando o link
+  dela. Ajustável direto na tela, com controle de volume.
+- **Abas Hoje / Semana / Histórico**: minutos de foco reais completados (não conta o tempo de
+  pausa) e um streak próprio — dias consecutivos com pelo menos um ciclo de foco completo, contado
+  separado do streak de sessões de estudo em Progresso.
+
+## Aparência — trocar a paleta de cores do app
+
+Em **Configurações → Aparência**, escolha entre 4 templates de cor prontos — a mudança é instantânea,
+não precisa clicar em "Salvar alterações":
+
+| Template | Descrição |
+|---|---|
+| Notion | Padrão do app — azul e verde sobre grafite quente |
+| Linear | Preto quase absoluto, acento índigo |
+| Raycast | Vazio azulado escuro, acento vermelho |
+| Claude | Único tema **claro** do app — pergaminho e terracota |
+
+A escolha fica salva no seu perfil (persiste entre sessões/dispositivos, não é só local no
+navegador) e é aplicada imediatamente ao carregar qualquer tela, sem piscar o tema padrão antes.
+
+## Nível e XP (Progresso)
+
+O card no topo de **Progresso** mostra um nível e uma barra de XP, puramente local (nenhum dado
+sai da sua máquina, não é um ranking nem tem componente social). Você ganha XP por: completar uma
+sessão de estudo, completar uma revisão espaçada (metodologia "Repetição Espaçada"), e por cada
+dia de streak. É uma camada de progressão de longo prazo em cima das métricas reais — não afeta o
+calendário nem a metodologia escolhida pra nenhuma sessão.
+
 ## Configurações — o que já funciona e o que ainda é só preferência salva
 
 Seja realista sobre o que mexer aqui muda de fato, hoje:
@@ -230,6 +279,7 @@ Seja realista sobre o que mexer aqui muda de fato, hoje:
 | IA & Agentes → Base URL / Chave / Modelo | **Funciona de verdade** — troca o provedor/modelo usado por todas as chamadas de IA do app (Orchestrator, geração de calendário via IA, parser de ementa, geração/correção de active recall), sem precisar editar `.env.local` nem reiniciar o servidor. Use "Testar conexão" pra validar antes de salvar |
 | IA & Agentes → Agressividade do replanejamento | Preferência salva, **não é lida por nenhuma parte da geração de calendário** ainda |
 | IA & Agentes → toggles de Curriculum/Pedagogy/Progress/QA Agent | Preferência salva, **não desativam de fato o agente correspondente** — por exemplo, desligar "QA Agent" aqui não impede o QA de rodar |
+| Aparência → Template de cores | Funciona de verdade — troca a paleta do app inteiro na hora, sem precisar salvar |
 | Manutenção → Corrigir progresso | Funciona — recalcula o % de conclusão de todas as matérias a partir dos módulos realmente marcados como concluídos, útil se o progresso ficou dessincronizado |
 | Zona de risco → Apagar tudo | Funciona — remove matérias/módulos/grupos/sessões, mas preserva seu perfil e suas preferências (você reentra pelo onboarding com nome/bio/disponibilidade já preenchidos, não do zero) |
 
