@@ -31,13 +31,53 @@ const NOTIFICATION_ITEMS: { key: string; label: string; description: string }[] 
   { key: "nightSilence", label: "Silêncio noturno", description: "Sem notificações entre 23h–7h" },
 ];
 
-const AI_MODEL_OPTIONS = [
-  "qwen2.5:7b (recomendado, Ollama local)",
-  "llama3.1:8b (Ollama local)",
-  "Outro (configurar via LLM_MODEL em .env.local)",
-];
-
 const REPLAN_AGGRESSIVENESS_OPTIONS = ["Conservador", "Balanceado", "Agressivo"];
+
+interface ProviderPreset {
+  id: string;
+  label: string;
+  baseURL: string;
+  model: string;
+  needsKey: boolean;
+  hint: string;
+}
+
+// baseURL/model here are just sane starting points for each provider — all three fields stay
+// freely editable afterward, so a custom/self-hosted OpenAI-compatible endpoint always works too.
+const PROVIDER_PRESETS: ProviderPreset[] = [
+  {
+    id: "ollama",
+    label: "Ollama local (padrão)",
+    baseURL: "http://localhost:11434/v1",
+    model: "qwen2.5:7b",
+    needsKey: false,
+    hint: "Grátis, privado, roda na sua máquina. Precisa do Ollama rodando (pnpm ai:start).",
+  },
+  {
+    id: "groq",
+    label: "Groq (nuvem)",
+    baseURL: "https://api.groq.com/openai/v1",
+    model: "llama-3.3-70b-versatile",
+    needsKey: true,
+    hint: "Gratuito com limites generosos, muito rápido. Precisa de uma chave em console.groq.com.",
+  },
+  {
+    id: "openrouter",
+    label: "OpenRouter (nuvem)",
+    baseURL: "https://openrouter.ai/api/v1",
+    model: "meta-llama/llama-3.3-70b-instruct",
+    needsKey: true,
+    hint: "Acesso a vários modelos/provedores com uma chave só — openrouter.ai.",
+  },
+  {
+    id: "custom",
+    label: "Personalizado",
+    baseURL: "",
+    model: "",
+    needsKey: true,
+    hint: "Qualquer endpoint compatível com a API da OpenAI (LM Studio, Together.ai, etc.).",
+  },
+];
 
 const AGENT_ITEMS: { key: string; label: string; description: string }[] = [
   { key: "curriculum", label: "Curriculum Agent", description: "Parseia ementas e organiza módulos" },
@@ -89,7 +129,12 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
   );
 
   // IA & Agentes
-  const [aiModel, setAiModel] = useState(() => asString(basePreferences.aiModel, AI_MODEL_OPTIONS[0]));
+  const savedAi = (basePreferences.ai ?? {}) as { baseURL?: string; apiKey?: string; model?: string };
+  const [llmBaseUrl, setLlmBaseUrl] = useState(() => asString(savedAi.baseURL, PROVIDER_PRESETS[0].baseURL));
+  const [llmApiKey, setLlmApiKey] = useState(() => savedAi.apiKey ?? "");
+  const [llmModel, setLlmModel] = useState(() => asString(savedAi.model, PROVIDER_PRESETS[0].model));
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [testing, setTesting] = useState(false);
   const [replanAggressiveness, setReplanAggressiveness] = useState(() =>
     asString(basePreferences.replanAggressiveness, "Balanceado")
   );
@@ -99,6 +144,35 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
     for (const item of AGENT_ITEMS) seeded[item.key] = stored[item.key] ?? true;
     return seeded;
   });
+
+  function applyPreset(preset: ProviderPreset) {
+    setLlmBaseUrl(preset.baseURL);
+    setLlmModel(preset.model);
+    setTestResult(null);
+    if (preset.id === "ollama") setLlmApiKey("");
+  }
+
+  async function handleTestConnection() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/system/health", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ baseURL: llmBaseUrl, apiKey: llmApiKey || undefined, model: llmModel }),
+      });
+      const data = await res.json();
+      setTestResult(
+        data.reachable
+          ? { ok: true, message: `Conectado — modelo "${data.model}" ${data.modelAvailable ? "disponível" : "NÃO encontrado no servidor"}.` }
+          : { ok: false, message: data.message ?? "Não foi possível conectar." }
+      );
+    } catch {
+      setTestResult({ ok: false, message: "Não foi possível testar a conexão." });
+    } finally {
+      setTesting(false);
+    }
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -114,7 +188,7 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
             notifications,
             availability,
             restDay,
-            aiModel,
+            ai: { baseURL: llmBaseUrl.trim(), apiKey: llmApiKey.trim(), model: llmModel.trim() },
             replanAggressiveness,
             agentsEnabled,
           },
@@ -360,16 +434,88 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
 
           {activeTab === "ia" && (
             <div>
-              <div className="mb-2.5">
-                <label className={labelClass}>Modelo principal</label>
-                <select className={inputClass} value={aiModel} onChange={(e) => setAiModel(e.target.value)}>
-                  {AI_MODEL_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+              <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-muted mb-2.5">
+                Provedor de IA
               </div>
+              <div className="mb-2.5 flex flex-wrap gap-1.5">
+                {PROVIDER_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => applyPreset(preset)}
+                    className={`text-[11px] font-medium rounded-full px-2.5 py-1 cursor-pointer border transition-colors ${
+                      llmBaseUrl === preset.baseURL
+                        ? "bg-primary/15 border-primary/40 text-primary"
+                        : "bg-card2 border-border text-dim hover:text-txt"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted mb-3 leading-relaxed">
+                {PROVIDER_PRESETS.find((p) => p.baseURL === llmBaseUrl)?.hint ??
+                  "Endpoint compatível com a API da OpenAI."}
+              </p>
+
+              <div className="mb-2.5">
+                <label className={labelClass}>Endpoint (Base URL)</label>
+                <input
+                  className={inputClass}
+                  value={llmBaseUrl}
+                  onChange={(e) => {
+                    setLlmBaseUrl(e.target.value);
+                    setTestResult(null);
+                  }}
+                  placeholder="http://localhost:11434/v1"
+                />
+              </div>
+              <div className="mb-2.5">
+                <label className={labelClass}>
+                  Chave de API {PROVIDER_PRESETS.find((p) => p.baseURL === llmBaseUrl)?.needsKey === false ? "(não usada pelo Ollama)" : ""}
+                </label>
+                <input
+                  type="password"
+                  className={inputClass}
+                  value={llmApiKey}
+                  onChange={(e) => {
+                    setLlmApiKey(e.target.value);
+                    setTestResult(null);
+                  }}
+                  placeholder="sk-..."
+                  autoComplete="off"
+                />
+                <p className="text-[10px] text-muted mt-1">
+                  Fica salva só no seu banco local (SQLite), nunca sai daqui — o mesmo lugar onde já
+                  ficam suas matérias e progresso. Nunca é enviada a lugar nenhum além do próprio
+                  provedor configurado acima.
+                </p>
+              </div>
+              <div className="mb-2.5">
+                <label className={labelClass}>Modelo</label>
+                <input
+                  className={inputClass}
+                  value={llmModel}
+                  onChange={(e) => {
+                    setLlmModel(e.target.value);
+                    setTestResult(null);
+                  }}
+                  placeholder="qwen2.5:7b"
+                />
+              </div>
+              <div className="mb-3.5 flex items-center gap-2">
+                <Button size="sm" onClick={handleTestConnection} disabled={testing || !llmBaseUrl.trim()}>
+                  {testing ? "Testando…" : "Testar conexão"}
+                </Button>
+                {testResult && (
+                  <span className={`text-[11px] ${testResult.ok ? "text-success" : "text-danger"}`}>
+                    {testResult.ok ? "✓" : "✗"} {testResult.message}
+                  </span>
+                )}
+              </div>
+
+              <div className="h-px bg-border mb-3" />
+
               <div className="mb-3.5">
                 <label className={labelClass}>Agressividade do replanejamento</label>
                 <select

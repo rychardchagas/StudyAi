@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type OpenAI from "openai";
 import { executeTool, TOOLS } from "@/lib/agents/tools";
 import { describeLlmError } from "@/lib/agents/llm-error";
-import { llm, LLM_MODEL } from "@/lib/agents/llm-client";
+import { getLlmClient } from "@/lib/agents/llm-client";
 
 const ORCHESTRATOR_PROMPT = `You are StudyAI's Orchestrator — an intelligent study planning assistant.
 You help students manage their study calendars using evidence-based learning techniques:
@@ -41,6 +41,7 @@ function sanitizeReply(content: string, actionsPerformed: string[]): string {
 
 export async function POST(req: NextRequest) {
   try {
+    const { client: llm, model: LLM_MODEL } = getLlmClient();
     const { messages, context } = await req.json();
     // `context.disciplines[].name` can originate from Curriculum Agent's PDF parsing (an AI-
     // inferred discipline name from arbitrary uploaded document text) or from free-text typed by

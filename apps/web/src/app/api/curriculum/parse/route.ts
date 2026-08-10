@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import pdfParse from "pdf-parse";
 import type { ParsedModule } from "@/lib/agents/curriculum";
 import { describeLlmError } from "@/lib/agents/llm-error";
-import { llm, LLM_MODEL } from "@/lib/agents/llm-client";
+import { getLlmClient } from "@/lib/agents/llm-client";
 import { extractJson } from "@/lib/agents/extract-json";
 
 // The 40_000-char slice below only caps the *extracted* text — a huge upload still pays the full
@@ -42,6 +42,7 @@ function sanitizeModules(modules: ParsedModule[] | undefined): ParsedModule[] {
 
 export async function POST(req: NextRequest) {
   try {
+    const { client: llm, model: LLM_MODEL } = getLlmClient();
     const form = await req.formData();
     const file = form.get("file");
     // Optional now: the Disciplines screen still provides it (user already named the

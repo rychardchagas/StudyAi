@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateCalendar } from "@/lib/agents/qa";
 import { describeLlmError } from "@/lib/agents/llm-error";
-import { llm, LLM_MODEL } from "@/lib/agents/llm-client";
+import { getLlmClient } from "@/lib/agents/llm-client";
 import { extractJson } from "@/lib/agents/extract-json";
 import type { CalendarEvent } from "@/types";
 
 export async function POST(req: NextRequest) {
   try {
+    const { client: llm, model: LLM_MODEL } = getLlmClient();
     const { disciplines, availability, preferences, studentContext, todayDayOfWeek } = await req.json();
 
     const prompt = `Generate a study calendar for the following week.

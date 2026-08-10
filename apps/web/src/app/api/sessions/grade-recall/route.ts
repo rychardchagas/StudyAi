@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { llm, LLM_MODEL } from "@/lib/agents/llm-client";
+import { getLlmClient } from "@/lib/agents/llm-client";
 import { extractJson } from "@/lib/agents/extract-json";
 
 interface GradeBody {
@@ -16,6 +16,7 @@ interface GradeBody {
 // the module it came from.
 export async function POST(req: NextRequest) {
   try {
+    const { client: llm, model: LLM_MODEL } = getLlmClient();
     const { question, answer, moduleName } = (await req.json()) as GradeBody;
     if (!question?.trim() || !answer?.trim()) {
       return NextResponse.json({ error: "missing_input" }, { status: 400 });

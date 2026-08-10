@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getModule } from "@/lib/db/local-db";
-import { llm, LLM_MODEL } from "@/lib/agents/llm-client";
+import { getLlmClient } from "@/lib/agents/llm-client";
 import { extractJson } from "@/lib/agents/extract-json";
 
 interface QuestionsBody {
@@ -15,6 +15,7 @@ interface QuestionsBody {
 // per topic (still content-specific) if the model call fails, rather than surfacing an error mid-session.
 export async function POST(req: NextRequest) {
   try {
+    const { client: llm, model: LLM_MODEL } = getLlmClient();
     const { moduleId, moduleName, disciplineName } = (await req.json()) as QuestionsBody;
     const mod = moduleId ? getModule(moduleId) : undefined;
     const name = mod?.name ?? moduleName ?? "este tema";
