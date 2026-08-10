@@ -1,3 +1,5 @@
+![StudyAI](docs/screenshots/banner.svg)
+
 # StudyAI
 
 **Calendário de estudos inteligente** — cadastre suas matérias e disponibilidade, e um time de

@@ -79,9 +79,14 @@ export function Sidebar({ disciplines, streakDays, last7Days }: SidebarProps) {
             collapsed ? "justify-center py-2.5" : "px-3 py-2.5"
           }`}
         >
-          <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center text-[11px] font-bold text-bg shrink-0">
-            S
-          </div>
+          <svg width="24" height="24" viewBox="0 0 100 100" className="shrink-0" aria-label="StudyAI">
+            <rect width="100" height="100" rx="24" fill="#1A1310" />
+            <rect x="22" y="24" width="52" height="34" rx="7" fill="#6E5B49" />
+            <rect x="26" y="34" width="52" height="34" rx="7" fill="#B98A22" />
+            <rect x="30" y="44" width="52" height="34" rx="7" fill="#F1E7D6" />
+            <rect x="38" y="55" width="22" height="4" rx="2" fill="#1A1310" />
+            <rect x="38" y="64" width="13" height="4" rx="2" fill="#2F9C8D" />
+          </svg>
           {!collapsed && (
             <>
               <span className="font-serif text-sm font-semibold tracking-tight text-txt flex-1 whitespace-nowrap">

@@ -21,6 +21,13 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "StudyAI — Calendário de Estudos Inteligente",
   description: "Plataforma de estudos com IA, repetição espaçada e interleaving adaptativo.",
+  icons: {
+    // icon.svg (this directory) covers every other size via Next's file convention — this entry
+    // only adds a 16px-specific variant (two cards, no inner line detail) for browser tabs, where
+    // the full 3-card version's thin lines wash out. Browsers prefer an exact `sizes` match over
+    // the unsized file-convention icon when both are present.
+    icon: [{ url: "/favicon-16.svg", sizes: "16x16", type: "image/svg+xml" }],
+  },
 };
 
 export default function RootLayout({
