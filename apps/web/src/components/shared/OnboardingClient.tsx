@@ -48,12 +48,15 @@ const newDiscipline = (): DisciplineDraft => ({
   modules: [],
 });
 
-// A few reasonable weekday-evening defaults (Mon-Fri, 19h & 20h) — index 13/14 of SLOT_LABELS.
+// A few reasonable weekday-evening defaults (Mon-Fri, 19h & 20h) — resolved by label instead of a
+// hardcoded index (used to be "index 13/14", which quietly meant a different pair of hours the
+// moment SLOT_LABELS' range changed — see the comment on SLOT_LABELS itself in constants.ts).
+const DEFAULT_EVENING_HOURS = ["19h", "20h"];
 const defaultSlots = (): Record<string, boolean> => {
   const slots: Record<string, boolean> = {};
+  const indices = DEFAULT_EVENING_HOURS.map((h) => SLOT_LABELS.indexOf(h)).filter((i) => i !== -1);
   for (let day = 0; day < 5; day++) {
-    slots[`${day}-13`] = true;
-    slots[`${day}-14`] = true;
+    for (const si of indices) slots[`${day}-${si}`] = true;
   }
   return slots;
 };

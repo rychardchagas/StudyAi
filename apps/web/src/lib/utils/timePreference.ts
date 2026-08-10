@@ -2,15 +2,27 @@ import { SLOT_LABELS } from "@/lib/utils/constants";
 
 export type DayPeriod = "manhã" | "tarde" | "noite";
 
-// Index range into SLOT_LABELS (06h..21h, 16 entries) for each period — used to pre-check the
-// matching slots in SchedGrid when a student's onboarding bio states a preference. Keyword-based
-// (not an LLM call): this only needs to catch a handful of common PT-BR phrasings, works
-// offline/instantly, and has no failure mode to design around like a model call would.
-const PERIOD_SLOT_RANGE: Record<DayPeriod, [number, number]> = {
-  "manhã": [0, 5], // 06h–11h
-  tarde: [6, 11], // 12h–17h
-  noite: [12, 15], // 18h–21h
+// Hour range per period, resolved against SLOT_LABELS by label lookup rather than hardcoded
+// indices — SLOT_LABELS.length/contents already changed once (06h–21h → 04h–00h) and a previous
+// version of this file hardcoded [0,5]/[6,11]/[12,15], which would have silently pointed at the
+// wrong hours the moment the calendar's visible range changed. Resolving by label instead means
+// this stays correct automatically if SLOT_LABELS is ever resized again.
+const PERIOD_HOUR_RANGE: Record<DayPeriod, [number, number]> = {
+  "manhã": [6, 11],
+  tarde: [12, 17],
+  noite: [18, 23],
 };
+
+function hourLabel(hour: number): string {
+  return `${String(hour).padStart(2, "0")}h`;
+}
+
+const PERIOD_SLOT_RANGE: Record<DayPeriod, [number, number]> = Object.fromEntries(
+  (Object.keys(PERIOD_HOUR_RANGE) as DayPeriod[]).map((period) => {
+    const [startHour, endHour] = PERIOD_HOUR_RANGE[period];
+    return [period, [SLOT_LABELS.indexOf(hourLabel(startHour)), SLOT_LABELS.indexOf(hourLabel(endHour))]];
+  })
+) as Record<DayPeriod, [number, number]>;
 
 // JS's \b is ASCII-only (based on \w = [A-Za-z0-9_]) even with the /u flag — "ã" doesn't count as
 // a word character, so \bmanh[ãa]s?\b silently never matched "manhã" (the boundary check fails
