@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calendar, Clock, TrendingUp, BookOpen, FlaskConical, Settings, Flame, HelpCircle, Bot, type LucideIcon } from "lucide-react";
+import { Calendar, Clock, Timer, TrendingUp, BookOpen, FlaskConical, Settings, Flame, HelpCircle, Bot, type LucideIcon } from "lucide-react";
 import type { Discipline } from "@/types";
 
 interface SidebarProps {
@@ -14,6 +14,7 @@ interface SidebarProps {
 const STUDY_ITEMS: Array<{ Icon: LucideIcon; label: string; href: string }> = [
   { Icon: Calendar, label: "Calendário", href: "/dashboard" },
   { Icon: Clock, label: "Sessão ativa", href: "/session" },
+  { Icon: Timer, label: "Pomodoro", href: "/pomodoro" },
   { Icon: TrendingUp, label: "Progresso", href: "/progress" },
 ];
 

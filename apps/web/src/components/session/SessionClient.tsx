@@ -6,11 +6,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { useTimer } from "@/lib/hooks/useTimer";
 import { usePomodoro } from "@/lib/hooks/usePomodoro";
+import { usePomodoroConfig } from "@/lib/hooks/usePomodoroConfig";
 import { useLofiAmbience } from "@/lib/hooks/useLofiAmbience";
 import { parseSpotifyEmbedUrl } from "@/lib/utils/spotifyEmbed";
 import { Button } from "@/components/ui/Button";
 import { Tip } from "@/components/ui/Tip";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { PomodoroSettingsPanel } from "@/components/shared/PomodoroSettingsPanel";
 import { Target } from "lucide-react";
 import { sendToOrchestrator } from "@/lib/agents/orchestrator";
 import { cn } from "@/lib/utils/cn";
@@ -59,11 +61,14 @@ export function SessionClient() {
   const durationMinutes = Number(duration) || 45;
   const initialSeconds = Number(duration) * 60 || 45 * 60;
   const timer = useTimer(initialSeconds);
-  const pomodoro = usePomodoro();
+  const { config: pomodoroConfig, saveConfig: savePomodoroConfig } = usePomodoroConfig();
+  const pomodoro = usePomodoro(pomodoroConfig);
   const [pomodoroMode, setPomodoroMode] = useState(false);
+  const [showPomodoroSettings, setShowPomodoroSettings] = useState(false);
   // Timeboxing is a structural technique independent of which content methodology the session
   // uses (see Methodology in lib/agents/pedagogy.ts) — this lets the plain countdown and the
-  // 25/5 work/break cycle share the same ring/controls in the JSX below instead of duplicating it.
+  // configurable work/break cycle share the same ring/controls in the JSX below instead of
+  // duplicating it.
   const activeTimer = pomodoroMode
     ? {
         seconds: pomodoro.seconds,
@@ -71,7 +76,7 @@ export function SessionClient() {
         progress: pomodoro.progress,
         toggle: pomodoro.toggle,
         reset: pomodoro.reset,
-        skip: pomodoro.reset,
+        skip: pomodoro.skip,
         fmt: pomodoro.fmt,
         completed: false,
       }
@@ -79,9 +84,13 @@ export function SessionClient() {
 
   useEffect(() => {
     if (!pomodoro.justTransitioned) return;
-    toast(pomodoro.justTransitioned === "break" ? "🍅 Pomodoro concluído — hora da pausa!" : "☕ Pausa acabou — volta pro foco.", {
-      icon: pomodoro.justTransitioned === "break" ? "☕" : "🍅",
-    });
+    if (pomodoro.justTransitioned === "work") {
+      toast("☕ Pausa acabou — volta pro foco.", { icon: "☕" });
+    } else if (pomodoro.justTransitioned === "long-break") {
+      toast("🎉 Ciclo completo — hora da pausa longa!", { icon: "🎉" });
+    } else {
+      toast("🍅 Pomodoro concluído — hora da pausa!", { icon: "🍅" });
+    }
     pomodoro.clearTransition();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pomodoro.justTransitioned]);
@@ -119,14 +128,18 @@ export function SessionClient() {
     try {
       const trimmed = spotifyInput.trim();
       // Read the current profile fresh right before writing — preferences is a shared blob (ai
-      // provider config, notifications, availability, etc.) and this must only ever touch its own
-      // `pomodoro` key, never overwrite the rest with whatever this component last saw on mount.
+      // provider config, notifications, availability, etc.) and `pomodoro` itself is shared too
+      // (durations/auto-start live there via usePomodoroConfig) — spread the existing pomodoro
+      // object too, or saving the link would silently wipe whatever timer config was already set.
       const current = await (await fetch("/api/profile")).json();
       const res = await fetch("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          preferences: { ...(current.preferences ?? {}), pomodoro: { spotifyUrl: trimmed } },
+          preferences: {
+            ...(current.preferences ?? {}),
+            pomodoro: { ...(current.preferences?.pomodoro ?? {}), spotifyUrl: trimmed },
+          },
         }),
       });
       if (!res.ok) throw new Error("save failed");
@@ -416,7 +429,7 @@ export function SessionClient() {
     }
   };
 
-  const timerLabel = pomodoroMode && pomodoro.phase === "break" ? "pausa" : activeTimer.running ? "foco" : "pausado";
+  const timerLabel = pomodoroMode && pomodoro.phase !== "work" ? "pausa" : activeTimer.running ? "foco" : "pausado";
 
   const ringRadius = 58;
   const circumference = 2 * Math.PI * ringRadius;
@@ -618,139 +631,28 @@ export function SessionClient() {
                   {pomodoro.cyclesCompleted} {pomodoro.cyclesCompleted === 1 ? "ciclo" : "ciclos"}
                 </span>
               )}
+              {pomodoroMode && (
+                <button
+                  type="button"
+                  onClick={() => setShowPomodoroSettings((v) => !v)}
+                  title="Configurar durações do Pomodoro"
+                  className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-card2 text-[10px] text-dim hover:text-txt"
+                >
+                  ⚙️
+                </button>
+              )}
             </div>
 
-            {pomodoroMode && (
-              <div className="relative mb-2.5 rounded-lg border border-border bg-card2 p-2">
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    {spotifyEmbedUrl && (
-                      <div className="flex overflow-hidden rounded-md border border-border">
-                        <button
-                          type="button"
-                          onClick={() => setMusicSource("lofi")}
-                          className={cn(
-                            "px-2 py-0.5 font-mono text-[10px]",
-                            musicSource === "lofi" ? "bg-primary/15 text-primary" : "bg-transparent text-dim"
-                          )}
-                        >
-                          🎵 Lofi
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setMusicSource("spotify")}
-                          className={cn(
-                            "px-2 py-0.5 font-mono text-[10px]",
-                            musicSource === "spotify" ? "bg-primary/15 text-primary" : "bg-transparent text-dim"
-                          )}
-                        >
-                          🎧 Spotify
-                        </button>
-                      </div>
-                    )}
-                    {!spotifyEmbedUrl && <span className="font-mono text-[10px] text-dim">🎵 Lofi ambiente</span>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {!editingSpotify && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSpotifyInput(spotifyRawUrl);
-                          setEditingSpotify(true);
-                        }}
-                        title={spotifyEmbedUrl ? "Editar link do Spotify" : "Usar playlist do Spotify"}
-                        className="font-mono text-[10px] text-dim hover:text-txt"
-                      >
-                        {spotifyEmbedUrl ? "✏️" : "+ Spotify"}
-                      </button>
-                    )}
-                    {!editingSpotify && musicSource === "lofi" && (
-                      <button
-                        type="button"
-                        onClick={() => setMusicEnabled((v) => !v)}
-                        title={musicEnabled ? "Desligar música" : "Ligar música"}
-                        className="font-mono text-[10px] text-dim hover:text-txt"
-                      >
-                        {musicEnabled ? "🔊" : "🔇"}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {editingSpotify ? (
-                  <div>
-                    <div className="flex gap-1.5">
-                      <input
-                        autoFocus
-                        type="text"
-                        value={spotifyInput}
-                        onChange={(e) => setSpotifyInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleSaveSpotifyUrl();
-                          if (e.key === "Escape") setEditingSpotify(false);
-                        }}
-                        placeholder="https://open.spotify.com/playlist/..."
-                        className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 py-1 font-mono text-[10px] text-txt outline-none focus:border-primary/50"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSaveSpotifyUrl}
-                        disabled={savingSpotify}
-                        className="rounded-md bg-primary px-2 py-1 font-mono text-[10px] font-semibold text-bg"
-                      >
-                        {savingSpotify ? "..." : "Salvar"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingSpotify(false)}
-                        className="rounded-md border border-border px-2 py-1 font-mono text-[10px] text-dim"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                    {spotifyInput.trim() && (
-                      <p className={`mt-1 text-[10px] ${parseSpotifyEmbedUrl(spotifyInput) ? "text-success" : "text-danger"}`}>
-                        {parseSpotifyEmbedUrl(spotifyInput) ? "✓ Link válido" : "✗ Não reconheci como link do Spotify"}
-                      </p>
-                    )}
-                  </div>
-                ) : musicSource === "lofi" ? (
-                  <>
-                    {musicEnabled && (
-                      <input
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        defaultValue={0.3}
-                        onChange={(e) => lofi.setVolume(Number(e.target.value))}
-                        className="w-full accent-primary"
-                      />
-                    )}
-                    <p className="text-[10px] text-muted">
-                      Ambiente sonoro gerado localmente — toca enquanto o timer de foco/pausa estiver
-                      rodando.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <iframe
-                      title="Player do Spotify"
-                      src={spotifyEmbedUrl ?? undefined}
-                      width="100%"
-                      height="152"
-                      style={{ borderRadius: 8, border: "none" }}
-                      allow="autoplay; encrypted-media; clipboard-write; fullscreen; picture-in-picture"
-                      loading="lazy"
-                    />
-                    <p className="mt-1 text-[10px] text-muted">
-                      Pode ser preciso apertar play uma vez aqui dentro — o navegador nem sempre
-                      libera autoplay para o player embutido.
-                    </p>
-                  </>
-                )}
+            {pomodoroMode && showPomodoroSettings && (
+              <div className="relative mb-2.5">
+                <PomodoroSettingsPanel
+                  config={pomodoroConfig}
+                  onSave={savePomodoroConfig}
+                  onClose={() => setShowPomodoroSettings(false)}
+                />
               </div>
             )}
+
             <div className="relative mb-2.5">
               <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
                 Como foi lembrar disso?
@@ -912,6 +814,140 @@ export function SessionClient() {
               </Button>
             </div>
           </div>
+
+          {/* Música — lofi local por padrão, playlist do Spotify se configurada. Só aparece com
+              o Modo Pomodoro ativo (mesma condição de antes, só mudou de coluna). */}
+          {pomodoroMode && (
+            <div className="mt-2.5 rounded-xl border border-border bg-card p-3">
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  {spotifyEmbedUrl && (
+                    <div className="flex overflow-hidden rounded-md border border-border">
+                      <button
+                        type="button"
+                        onClick={() => setMusicSource("lofi")}
+                        className={cn(
+                          "px-2 py-0.5 font-mono text-[10px]",
+                          musicSource === "lofi" ? "bg-primary/15 text-primary" : "bg-transparent text-dim"
+                        )}
+                      >
+                        🎵 Lofi
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMusicSource("spotify")}
+                        className={cn(
+                          "px-2 py-0.5 font-mono text-[10px]",
+                          musicSource === "spotify" ? "bg-primary/15 text-primary" : "bg-transparent text-dim"
+                        )}
+                      >
+                        🎧 Spotify
+                      </button>
+                    </div>
+                  )}
+                  {!spotifyEmbedUrl && <span className="font-mono text-[10px] text-dim">🎵 Lofi ambiente</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  {!editingSpotify && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSpotifyInput(spotifyRawUrl);
+                        setEditingSpotify(true);
+                      }}
+                      title={spotifyEmbedUrl ? "Editar link do Spotify" : "Usar playlist do Spotify"}
+                      className="font-mono text-[10px] text-dim hover:text-txt"
+                    >
+                      {spotifyEmbedUrl ? "✏️" : "+ Spotify"}
+                    </button>
+                  )}
+                  {!editingSpotify && musicSource === "lofi" && (
+                    <button
+                      type="button"
+                      onClick={() => setMusicEnabled((v) => !v)}
+                      title={musicEnabled ? "Desligar música" : "Ligar música"}
+                      className="font-mono text-[10px] text-dim hover:text-txt"
+                    >
+                      {musicEnabled ? "🔊" : "🔇"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {editingSpotify ? (
+                <div>
+                  <div className="flex gap-1.5">
+                    <input
+                      autoFocus
+                      type="text"
+                      value={spotifyInput}
+                      onChange={(e) => setSpotifyInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveSpotifyUrl();
+                        if (e.key === "Escape") setEditingSpotify(false);
+                      }}
+                      placeholder="https://open.spotify.com/playlist/..."
+                      className="min-w-0 flex-1 rounded-md border border-border bg-card2 px-2 py-1 font-mono text-[10px] text-txt outline-none focus:border-primary/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveSpotifyUrl}
+                      disabled={savingSpotify}
+                      className="rounded-md bg-primary px-2 py-1 font-mono text-[10px] font-semibold text-bg"
+                    >
+                      {savingSpotify ? "..." : "Salvar"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingSpotify(false)}
+                      className="rounded-md border border-border px-2 py-1 font-mono text-[10px] text-dim"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                  {spotifyInput.trim() && (
+                    <p className={`mt-1 text-[10px] ${parseSpotifyEmbedUrl(spotifyInput) ? "text-success" : "text-danger"}`}>
+                      {parseSpotifyEmbedUrl(spotifyInput) ? "✓ Link válido" : "✗ Não reconheci como link do Spotify"}
+                    </p>
+                  )}
+                </div>
+              ) : musicSource === "lofi" ? (
+                <>
+                  {musicEnabled && (
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      defaultValue={0.3}
+                      onChange={(e) => lofi.setVolume(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
+                  )}
+                  <p className="text-[10px] text-muted">
+                    Ambiente sonoro gerado localmente — toca enquanto o timer de foco/pausa estiver
+                    rodando.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <iframe
+                    title="Player do Spotify"
+                    src={spotifyEmbedUrl ?? undefined}
+                    width="100%"
+                    height="152"
+                    style={{ borderRadius: 8, border: "none" }}
+                    allow="autoplay; encrypted-media; clipboard-write; fullscreen; picture-in-picture"
+                    loading="lazy"
+                  />
+                  <p className="mt-1 text-[10px] text-muted">
+                    Pode ser preciso apertar play uma vez aqui dentro — o navegador nem sempre
+                    libera autoplay para o player embutido.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
