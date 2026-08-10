@@ -16,7 +16,10 @@
   --border2: 92% 0.01 55 / 0.15;
   --txt: 96% 0.01 75;
   --dim: 78% 0.02 60;
-  --muted: 62% 0.02 60;
+  /* Raised from 62% -> 65%: at 62% this passed AA (4.5:1) on bg/surface but fell to ~4.14:1 on
+     card2 (small text needs 4.5:1 per WCAG 2.x SC 1.4.3) — real-luminance OKLCH->sRGB math,
+     not eyeballed. 65% clears 4.5:1 against every surface token (bg/surface/card/card2). */
+  --muted: 65% 0.02 60;
 
   /* Same lightness + chroma, different hue: gold (gamification/primary actions) vs.
      teal (AI/agent elements) read as a deliberate pair, not two unrelated brand colors. */
