@@ -4,14 +4,14 @@
 // best-effort triggers /api/calendar/generate before landing on /dashboard.
 // There is no onboarding flow in the prototype (StudyAI.jsx) to port — this
 // screen was designed from scratch to match the app's visual language.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/Button";
 import { SchedGrid } from "@/components/shared/SchedGrid";
 import { DAYS_LABELS, SLOT_LABELS } from "@/lib/utils/constants";
 import { detectPreferredPeriods, applyPeriodToSlots, type DayPeriod, type DetectedPeriod } from "@/lib/utils/timePreference";
-import type { Discipline, Priority } from "@/types";
+import type { Discipline, Priority, Profile } from "@/types";
 
 interface ModuleDraft {
   name: string;
@@ -76,6 +76,30 @@ export function OnboardingClient() {
   // Step 4 — availability
   const [slots, setSlots] = useState<Record<string, boolean>>(defaultSlots());
   const [restDay, setRestDay] = useState<number | null>(null);
+
+  // This screen is reachable even when a profile already exists (root `/` sends anyone with 0
+  // disciplines here — e.g. right after "Apagar tudo" in Configurações, which explicitly promises
+  // "não afeta seu perfil nem suas preferências"). Without this, the form always started blank and
+  // `handleFinish` below would PATCH a fresh `preferences` object over the real one, silently
+  // wiping notifications/agentsEnabled/ai-provider config that had nothing to do with onboarding.
+  const existingPreferencesRef = useRef<Record<string, unknown>>({});
+  useEffect(() => {
+    fetch("/api/profile")
+      .then((res) => (res.ok ? (res.json() as Promise<Profile>) : null))
+      .then((profile) => {
+        if (!profile) return;
+        existingPreferencesRef.current = profile.preferences ?? {};
+        if (profile.name) setName(profile.name);
+        if (profile.bio) setBio(profile.bio);
+        const savedAvailability = profile.preferences?.availability as Record<string, boolean> | undefined;
+        if (savedAvailability && Object.keys(savedAvailability).length > 0) setSlots(savedAvailability);
+        const savedRestDay = profile.preferences?.restDay;
+        if (typeof savedRestDay === "number") setRestDay(savedRestDay);
+      })
+      .catch(() => {
+        // No profile yet (first-ever run) — keep the blank/default form as-is.
+      });
+  }, []);
   // "Prefiro estudar à noite" in the bio doesn't do anything on its own — Step 4's availability
   // grid is what actually drives scheduling. This surfaces it as an opt-in suggestion instead of
   // silently pre-checking anything, since the student may have already customized their slots.
@@ -258,7 +282,7 @@ export function OnboardingClient() {
         body: JSON.stringify({
           name: name.trim() || null,
           bio: bio.trim() || null,
-          preferences: { availability: slots, restDay },
+          preferences: { ...existingPreferencesRef.current, availability: slots, restDay },
         }),
       });
     } catch (error) {

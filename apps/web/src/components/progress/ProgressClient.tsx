@@ -48,7 +48,7 @@ function ProgressHeader({ period, onPeriodChange }: { period: Period; onPeriodCh
         <select
           value={period}
           onChange={(e) => onPeriodChange(e.target.value as Period)}
-          className="bg-card border border-border rounded-md text-dim text-xs px-2.5 py-1.5 w-[145px] cursor-pointer"
+          className="bg-card border border-border rounded-md text-dim text-xs px-2.5 py-1.5 w-[160px] cursor-pointer"
         >
           {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
             <option key={p} value={p}>{PERIOD_LABELS[p]}</option>
