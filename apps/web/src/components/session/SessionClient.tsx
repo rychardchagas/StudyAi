@@ -197,7 +197,10 @@ export function SessionClient() {
   const [recallAnswer, setRecallAnswer] = useState("");
   const [recallNotes, setRecallNotes] = useState<string[]>([]);
   const [grading, setGrading] = useState(false);
-  const [recallVerdict, setRecallVerdict] = useState<{ correct: boolean; feedback: string } | null>(null);
+  const [recallVerdict, setRecallVerdict] = useState<{
+    verdict: "correct" | "partial" | "incorrect";
+    feedback: string;
+  } | null>(null);
   // Default to "Bom" (3) rather than blocking completion on a forced choice — but this is a real,
   // changeable rating now, not the hardcoded 4 ("Fácil") this used to send unconditionally. It's
   // what feeds scheduleCard() in /api/sessions/complete, so it actually drives the module's next
@@ -336,7 +339,7 @@ export function SessionClient() {
         }),
       });
       if (!res.ok) throw new Error("grading unavailable");
-      const verdict: { correct: boolean; feedback: string } = await res.json();
+      const verdict: { verdict: "correct" | "partial" | "incorrect"; feedback: string } = await res.json();
       setRecallVerdict(verdict);
     } catch {
       toast("Não foi possível avaliar agora — resposta registrada mesmo assim.", { icon: "⚠️" });
@@ -889,12 +892,14 @@ export function SessionClient() {
               <div
                 className={cn(
                   "mb-2 rounded-lg border px-2.5 py-1.5 text-xs leading-relaxed",
-                  recallVerdict.correct
-                    ? "border-success/30 bg-success/10 text-success"
-                    : "border-danger/30 bg-danger/10 text-danger"
+                  recallVerdict.verdict === "correct" && "border-success/30 bg-success/10 text-success",
+                  recallVerdict.verdict === "partial" && "border-warning/30 bg-warning/10 text-warning",
+                  recallVerdict.verdict === "incorrect" && "border-danger/30 bg-danger/10 text-danger"
                 )}
               >
-                {recallVerdict.correct ? "✓ Certo — " : "✗ Incompleto — "}
+                {recallVerdict.verdict === "correct" && "✓ Correto — "}
+                {recallVerdict.verdict === "partial" && "OK — "}
+                {recallVerdict.verdict === "incorrect" && "✗ Incorreto — "}
                 <span className="text-txt">{recallVerdict.feedback}</span>
               </div>
             )}
