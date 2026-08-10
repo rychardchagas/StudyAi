@@ -4,12 +4,13 @@
 // best-effort triggers /api/calendar/generate before landing on /dashboard.
 // There is no onboarding flow in the prototype (StudyAI.jsx) to port — this
 // screen was designed from scratch to match the app's visual language.
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/Button";
 import { SchedGrid } from "@/components/shared/SchedGrid";
 import { DAYS_LABELS, SLOT_LABELS } from "@/lib/utils/constants";
+import { detectPreferredPeriods, applyPeriodToSlots, type DayPeriod, type DetectedPeriod } from "@/lib/utils/timePreference";
 import type { Discipline, Priority } from "@/types";
 
 interface ModuleDraft {
@@ -26,8 +27,17 @@ interface DisciplineDraft {
   modules: ModuleDraft[];
 }
 
-const inputCls =
-  "w-full bg-card2 border border-border rounded-lg px-3 py-2 text-sm text-txt outline-none focus:border-primary/50 placeholder:text-muted";
+// No width baked in — `inputCls` below adds w-full for the common single-field case. Composing
+// `inputCls` (which already carries w-full) with a second width utility (e.g. `w-20` for a narrow
+// side-by-side field) doesn't work the way the class order suggests: Tailwind's generated
+// stylesheet orders width utilities by its own internal scale, not by where they appear in the
+// className string, so `w-full` silently won over `w-20` regardless of order — the exact cause of
+// a real bug (module name input crushed to invisible, the hours input ballooning to fill the row
+// and showing the reader just a bare number where the module's name should be). Any input placed
+// in a flex row next to another sized element should compose from this base, not from `inputCls`.
+const inputBaseCls =
+  "bg-card2 border border-border rounded-lg px-3 py-2 text-sm text-txt outline-none focus:border-primary/50 placeholder:text-muted";
+const inputCls = `w-full ${inputBaseCls}`;
 const labelCls = "text-xs font-medium text-dim block mb-1";
 
 const newDiscipline = (): DisciplineDraft => ({
@@ -65,6 +75,21 @@ export function OnboardingClient() {
   // Step 4 — availability
   const [slots, setSlots] = useState<Record<string, boolean>>(defaultSlots());
   const [restDay, setRestDay] = useState<number | null>(null);
+  // "Prefiro estudar à noite" in the bio doesn't do anything on its own — Step 4's availability
+  // grid is what actually drives scheduling. This surfaces it as an opt-in suggestion instead of
+  // silently pre-checking anything, since the student may have already customized their slots.
+  const detectedPeriods = useMemo(() => detectPreferredPeriods(bio), [bio]);
+  const [handledPeriods, setHandledPeriods] = useState<Set<DayPeriod>>(new Set());
+
+  function handleApplyPeriod(dp: DetectedPeriod) {
+    setSlots((prev) => applyPeriodToSlots(prev, dp.slotRange));
+    setHandledPeriods((prev) => new Set(prev).add(dp.period));
+    toast.success(`Horários de ${dp.label.toLowerCase()} marcados (seg-sex) — ajuste como quiser.`);
+  }
+
+  function handleDismissPeriod(period: DayPeriod) {
+    setHandledPeriods((prev) => new Set(prev).add(period));
+  }
 
   const validDisciplines = disciplines.filter((d) => d.name.trim().length > 0);
 
@@ -432,7 +457,7 @@ export function OnboardingClient() {
                                 {d.modules.map((m, mi) => (
                                   <div key={mi} className="flex items-center gap-2">
                                     <input
-                                      className={inputCls}
+                                      className={`${inputBaseCls} flex-1 min-w-0`}
                                       placeholder="Nome do módulo/capítulo"
                                       value={m.name}
                                       onChange={(e) => updateModule(di, mi, { name: e.target.value })}
@@ -441,7 +466,7 @@ export function OnboardingClient() {
                                       type="number"
                                       min={0}
                                       title="Horas estimadas"
-                                      className={`${inputCls} w-20 shrink-0`}
+                                      className={`${inputBaseCls} w-20 shrink-0`}
                                       value={m.estimated_hours}
                                       onChange={(e) =>
                                         updateModule(di, mi, { estimated_hours: Number(e.target.value) })
@@ -481,6 +506,39 @@ export function OnboardingClient() {
                   Marque os horários em que você costuma conseguir estudar. Isso é usado para montar seu
                   calendário automático.
                 </p>
+
+                {detectedPeriods
+                  .filter((dp) => !handledPeriods.has(dp.period))
+                  .map((dp) => (
+                    <div
+                      key={dp.period}
+                      className="mb-3 bg-primary/10 border border-primary/25 rounded-lg p-3 flex items-start gap-2"
+                    >
+                      <span className="text-sm shrink-0">💡</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12px] text-txt leading-relaxed">
+                          Notamos no seu perfil uma preferência por estudar à <strong>{dp.period}</strong> — quer
+                          marcar automaticamente os horários de {dp.hourRange} (seg-sex)?
+                        </div>
+                        <div className="flex gap-2.5 mt-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleApplyPeriod(dp)}
+                            className="text-[11px] font-semibold text-primary cursor-pointer hover:underline"
+                          >
+                            Aplicar sugestão
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDismissPeriod(dp.period)}
+                            className="text-[11px] text-muted cursor-pointer hover:underline"
+                          >
+                            Ignorar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
 
                 <div className="mb-4 bg-card border border-border rounded-lg p-3">
                   <div className="flex items-center justify-between mb-2">
