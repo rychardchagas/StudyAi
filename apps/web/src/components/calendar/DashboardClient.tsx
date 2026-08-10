@@ -171,13 +171,33 @@ export function DashboardClient({ initialDisciplines, initialSessions, initialAv
     return keys;
   }, [initialSessions, weekOffset]);
 
+  // A module can also be marked "feito" by hand in Matérias/Kanban — e.g. content the student
+  // already knew from before this app, never studied through a real session here. That's a
+  // deliberate signal, not an accident: its calendar card should read as concluded too, not just
+  // whichever occurrences happen to have a matching study_sessions row this week — including a
+  // 🔁 Revisão occurrence, confirmed explicitly: the only real-data case for this is exactly a
+  // review slot, and it should read as concluded too. Scoped to the current week only (like
+  // doneEventKeys above) — future weeks are a projection, not something to mark done yet.
+  const doneModuleIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (weekOffset !== 0) return ids;
+    for (const d of disciplines) {
+      for (const m of d.modules ?? []) {
+        if (m.status === "done") ids.add(m.id);
+      }
+    }
+    return ids;
+  }, [disciplines, weekOffset]);
+
   const eventsWithDone = useMemo(
     () =>
       weekEvents.map((e) => ({
         ...e,
-        done: doneEventKeys.has(`${e.disciplineId}|${e.moduleId ?? ""}|${e.dayOfWeek}`),
+        done:
+          doneEventKeys.has(`${e.disciplineId}|${e.moduleId ?? ""}|${e.dayOfWeek}`) ||
+          (!!e.moduleId && doneModuleIds.has(e.moduleId)),
       })),
-    [weekEvents, doneEventKeys]
+    [weekEvents, doneEventKeys, doneModuleIds]
   );
 
   function handleStartSession(event: CalendarEvent) {
