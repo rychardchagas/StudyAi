@@ -42,4 +42,23 @@ describe("extractJson", () => {
   it("throws when braces never balance", () => {
     expect(() => extractJson('{"events": [')).toThrow(/Unbalanced/);
   });
+
+  it("strips a trailing // comment the model added inline — the real bug seen live", () => {
+    const text =
+      '{\n  "events": [\n    {\n      "dayOfWeek": 0, // Monday\n      "slotIndex": 7 // 15-minute slot\n    }\n  ]\n}';
+    expect(JSON.parse(extractJson(text))).toEqual({ events: [{ dayOfWeek: 0, slotIndex: 7 }] });
+  });
+
+  it("strips a /* block */ comment", () => {
+    const text = '{"a": 1, /* the model explaining itself */ "b": 2}';
+    expect(JSON.parse(extractJson(text))).toEqual({ a: 1, b: 2 });
+  });
+
+  it("does not strip // or /* that appear inside a real string value", () => {
+    const text = '{"url": "https://example.com/path", "note": "/* not a comment */"}';
+    expect(JSON.parse(extractJson(text))).toEqual({
+      url: "https://example.com/path",
+      note: "/* not a comment */",
+    });
+  });
 });

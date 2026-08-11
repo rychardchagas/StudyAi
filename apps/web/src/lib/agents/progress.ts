@@ -5,11 +5,15 @@
 import type { Discipline, Module, StudySession } from "@/types";
 import { calcETA } from "@/lib/utils/fsrs";
 import { nearestEvaluationDate } from "@/lib/utils/evaluations";
+import { startOfWeekMonday } from "@/lib/utils/constants";
 
 export function calcWeeklyAdherence(sessions: StudySession[], now: Date = new Date()): number {
-  const weekStart = new Date(now);
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-  weekStart.setHours(0, 0, 0, 0);
+  // Was `now.getDate() - now.getDay()` — JS's native getDay() is Sunday=0, so that anchored the
+  // window on Sunday while every other week-boundary in the app (the calendar grid, session
+  // distribution) anchors on Monday via startOfWeekMonday. A Sunday session landed in a different
+  // "week" here than the one the calendar itself shows it belonging to — real drift on the exact
+  // stat card (ADERÊNCIA) this file's own tooltip describes as "sessões desta semana".
+  const weekStart = startOfWeekMonday(now);
 
   const thisWeek = sessions.filter((s) => new Date(s.scheduled_at) >= weekStart && new Date(s.scheduled_at) <= now);
   if (!thisWeek.length) return 0;

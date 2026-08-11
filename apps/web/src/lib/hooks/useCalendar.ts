@@ -1,6 +1,7 @@
 "use client";
 import { useState, useCallback } from "react";
 import { generateCalendar } from "@/lib/agents/scheduler";
+import { validateCalendar } from "@/lib/agents/qa";
 import type { Discipline, CalendarEvent } from "@/types";
 
 // Monday=0..Sunday=6, matching CalendarEvent.dayOfWeek — used so the current week's generation
@@ -24,6 +25,16 @@ export function useCalendar(initialDisciplines: Discipline[], initialAvailabilit
       let usedAI = false;
       let qaIssues: string[] = [];
       const todayDayOfWeek = todayDayOfWeekMonday();
+      // The QA Agent's conflict/interleaving checks used to only ever run inside the AI route
+      // handler — any time that path failed for any reason (Ollama down, a malformed response,
+      // a network hiccup) the local fallback below ran with zero conflict detection at all, not
+      // just "sometimes" but every single time the AI path wasn't used. validateCalendar is a
+      // pure function (no server-only deps), so it can run here too.
+      const localFallback = () => {
+        const events = generateCalendar(discs, avail, { todayDayOfWeek });
+        setEvents(events);
+        qaIssues = validateCalendar(events, discs).issues;
+      };
       try {
         // Use AI-powered generation if available, fallback to local
         const res = await fetch("/api/calendar/generate", {
@@ -38,13 +49,13 @@ export function useCalendar(initialDisciplines: Discipline[], initialAvailabilit
             usedAI = true;
             qaIssues = data.qa?.issues ?? [];
           } else {
-            setEvents(generateCalendar(discs, avail, { todayDayOfWeek }));
+            localFallback();
           }
         } else {
-          setEvents(generateCalendar(discs, avail, { todayDayOfWeek }));
+          localFallback();
         }
       } catch {
-        setEvents(generateCalendar(discs, avail, { todayDayOfWeek }));
+        localFallback();
       } finally {
         setGenerating(false);
       }

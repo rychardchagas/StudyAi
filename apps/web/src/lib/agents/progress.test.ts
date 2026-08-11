@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcGamification, calcDisciplinePace } from "./progress";
+import { calcGamification, calcDisciplinePace, calcWeeklyAdherence } from "./progress";
 import type { Discipline, StudySession } from "@/types";
 
 function makeSession(overrides: Partial<StudySession> = {}): StudySession {
@@ -35,6 +35,24 @@ function makeDiscipline(overrides: Partial<Discipline> & { id: string; name: str
     ...overrides,
   };
 }
+
+describe("calcWeeklyAdherence", () => {
+  it("anchors the week on Monday, matching startOfWeekMonday used everywhere else in the app", () => {
+    const monday = new Date("2026-08-10T12:00:00.000Z"); // real Monday (see makeSession dates below)
+    // The old bug: `now.getDate() - now.getDay()` rolls a Monday back to the *Sunday* before it
+    // (JS getDay() is Sunday=0), so this Sunday session used to get counted as "this week" too —
+    // even though the calendar itself (Monday-anchored) shows it belonging to the prior week.
+    const sundayBefore = makeSession({ scheduled_at: "2026-08-09T10:00:00.000Z", completed: true });
+    expect(calcWeeklyAdherence([sundayBefore], monday)).toBe(0);
+  });
+
+  it("counts a session that falls later in the same Monday-Sunday week", () => {
+    const wednesday = new Date("2026-08-12T12:00:00.000Z");
+    const mondaySession = makeSession({ scheduled_at: "2026-08-10T09:00:00.000Z", completed: false });
+    const wedSession = makeSession({ scheduled_at: "2026-08-12T09:00:00.000Z", completed: true });
+    expect(calcWeeklyAdherence([mondaySession, wedSession], wednesday)).toBe(50);
+  });
+});
 
 describe("calcGamification", () => {
   it("starts at level 1 with 0 XP when there are no completed sessions", () => {
