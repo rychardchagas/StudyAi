@@ -197,11 +197,27 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
 export function executeTool(name: string, input: Record<string, unknown>): { result: string; changed: boolean } {
   switch (name) {
     case "add_discipline": {
+      const name = String(input.name).trim();
+      // Last line of defense against a real failure mode seen live: a purely informational or
+      // even off-topic question ("qual matéria devo priorizar?", "qual a capital da França?")
+      // made the local model call add_discipline anyway for a discipline that already existed —
+      // silently creating a duplicate in the student's real data. The system prompt now also
+      // says not to do this, but a small model doesn't reliably comply, so the tool itself has to
+      // refuse rather than trust that whatever called it already checked. Exact match only (not
+      // findDiscipline's fuzzy substring match) — "Cálculo I" and "Cálculo II" are legitimately
+      // different disciplines and shouldn't block each other.
+      const duplicate = listDisciplines().find((d) => d.name.trim().toLowerCase() === name.toLowerCase());
+      if (duplicate) {
+        return {
+          result: `Já existe uma matéria "${duplicate.name}" cadastrada — não criei uma duplicata. Pra mudar horas, prioridade ou data de prova dela, use update_discipline.`,
+          changed: false,
+        };
+      }
       const modules = Array.isArray(input.modules)
         ? (input.modules as Array<{ name: string; estimated_hours?: number }>)
         : undefined;
       const created = createDiscipline({
-        name: String(input.name),
+        name,
         horas_semana: Number(input.horas_semana) || 4,
         prioridade: input.prioridade as Priority,
         exam_date: (input.exam_date as string) || null,
