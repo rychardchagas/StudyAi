@@ -3,6 +3,7 @@ import { validateCalendar } from "@/lib/agents/qa";
 import { describeLlmError } from "@/lib/agents/llm-error";
 import { getLlmClient } from "@/lib/agents/llm-client";
 import { extractJson } from "@/lib/agents/extract-json";
+import { filterPastDayEvents } from "@/lib/agents/filterPastDayEvents";
 import type { CalendarEvent } from "@/types";
 
 export async function POST(req: NextRequest) {
@@ -94,10 +95,24 @@ Return ONLY valid JSON in this format:
     // even though the prompt now asks for them — backfill from the real discipline data whenever
     // an event is missing (or got) the wrong one, rather than letting a blank/wrong label render.
     const disciplineById = new Map((disciplines ?? []).map((d: { id: string }) => [d.id, d]));
-    const events = (calendar.events ?? []).map((e) => {
+    let events = (calendar.events ?? []).map((e) => {
       const disc = disciplineById.get(e.disciplineId) as { name?: string; color?: string } | undefined;
       return disc ? { ...e, disciplineName: disc.name ?? e.disciplineName, disciplineColor: disc.color ?? e.disciplineColor } : e;
     });
+
+    // Belt and suspenders again: the prompt tells the model not to schedule on a day that's
+    // already passed this week, but a small local model doesn't reliably comply (seen live —
+    // events on Monday showing up in a Wednesday replan). See filterPastDayEvents for why.
+    if (typeof todayDayOfWeek === "number") {
+      const beforeCount = events.length;
+      events = filterPastDayEvents(events, todayDayOfWeek);
+      if (events.length !== beforeCount) {
+        console.warn(
+          `Calendar generation: model scheduled ${beforeCount - events.length} event(s) on a day before today (todayDayOfWeek=${todayDayOfWeek}) despite the prompt instruction — dropped.`
+        );
+      }
+    }
+
     calendar = { events };
 
     const qa = validateCalendar(calendar.events ?? [], disciplines ?? []);

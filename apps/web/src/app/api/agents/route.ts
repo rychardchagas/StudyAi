@@ -3,6 +3,7 @@ import type OpenAI from "openai";
 import { executeTool, TOOLS } from "@/lib/agents/tools";
 import { describeLlmError } from "@/lib/agents/llm-error";
 import { getLlmClient } from "@/lib/agents/llm-client";
+import { sanitizeReply } from "@/lib/agents/sanitizeReply";
 
 const ORCHESTRATOR_PROMPT = `You are StudyAI's Orchestrator — an intelligent study planning assistant.
 You help students manage their study calendars using evidence-based learning techniques:
@@ -21,23 +22,6 @@ tool-call syntax, or any of the underlying data structures in your reply — alw
 natural Portuguese prose, as if explaining to a person, not printing a payload.`;
 
 const MAX_TOOL_ITERATIONS = 5;
-
-// Defense in depth alongside the prompt instruction above: a small local model can still bleed
-// raw JSON/code into its reply (e.g. echoing a tool call's own arguments back in prose) — seen
-// live as literal JSON payloads showing up in the chat. Strips fenced code blocks and any
-// paragraph that's just a JSON object/array, falling back to the (already clean, hand-written)
-// actionsPerformed summaries when nothing readable survives.
-function sanitizeReply(content: string, actionsPerformed: string[]): string {
-  const withoutFences = content.replace(/```[\s\S]*?```/g, "").trim();
-  const paragraphs = withoutFences
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter((p) => p && !(/^[[{][\s\S]*[\]}]$/.test(p)));
-  const cleaned = paragraphs.join("\n\n").trim();
-  if (cleaned) return cleaned;
-  if (actionsPerformed.length) return actionsPerformed.join(" ");
-  return "Pronto.";
-}
 
 export async function POST(req: NextRequest) {
   try {
