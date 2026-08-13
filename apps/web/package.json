@@ -27,7 +27,7 @@
     "react-hot-toast": "^2.4.1",
     "tailwind-merge": "^2.3.0",
     "zod": "^3.25.0",
-    "zustand": "^4.5.0"
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
