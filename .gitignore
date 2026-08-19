@@ -10,6 +10,7 @@ dist/
 apps/web/data/
 *.tsbuildinfo
 .claude/
+CLAUDE.md
 docs/KANBAN.md
 docs/GITHUB_ROADMAP.md
 docs/ROADMAP.md
